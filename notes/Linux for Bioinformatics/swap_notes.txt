@@ -1,0 +1,11 @@
+to establish a swap file
+
+$ https://developpaper.com/installing-permanent-virtual-memory-on-the-ubuntu-server-system/
+
+to turn off swap
+
+$ sudo swapoff -a 
+
+to show swamp file:
+
+$ swapon -s 

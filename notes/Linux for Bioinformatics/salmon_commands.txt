@@ -1,0 +1,16 @@
+fastq-dump --gzip ./SRR074122 
+salmon index -t SRR074122.fastq.gz -i transcripts_index -k 31 &> salmon_index.log &
+salmon quant --libType A -i transcripts_index -o transcripts_quant -r SRR074122.fastq.gz &> salmon_quant.log &
+
+# local:
+
+salmon index -t SRR074122.man.fastq -i transcripts_index -k 31
+salmon quant --libType A -i transcripts_index -o transcripts_quant -r SRR074122.man.fastq
+
+##########
+
+AWS:
+
+salmon index -t athal.fa.gz -i transcripts_index -k 31 &> salmon_index.log &
+salmon quant --libType A -i transcripts_index -o transcripts_quant -r SRR074122.fastq.gz &> salmon_quant.log &
+

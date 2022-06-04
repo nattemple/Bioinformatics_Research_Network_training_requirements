@@ -1,0 +1,3 @@
+#names(s9_first_last_life_expectancy)[names(s9_first_last_life_expectancy) == "first"] <- #"earliest_life_expectancy"
+#names(s9_first_last_life_expectancy)[names(s9_first_last_life_expectancy) == "last"] <- #"latest_life_expectancy"
+

@@ -1,0 +1,3 @@
+
+# to create salmonEnv and install salmon 1.4.0
+$ mamba create -n salmonEnv -c bioconda -c conda-forge salmon=1.4.0

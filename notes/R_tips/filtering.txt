@@ -1,0 +1,2 @@
+# filter out those with no data before 1962
+#temp <- filter(s9_first_last, first_year > 1962)

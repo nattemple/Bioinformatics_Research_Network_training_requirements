@@ -1,0 +1,5 @@
+to add to sudo group:
+$ sudo usermod -aG sudo userid
+
+to drop from sudo group:
+$ sudo gpasswd -d serveruser sudo

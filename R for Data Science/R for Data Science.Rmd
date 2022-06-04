@@ -1,0 +1,499 @@
+---
+title: "R for Data Science assignment"
+author: "Nathan Temple"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+---
+
+```{r, echo=TRUE, results="hide", message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+library(tidyverse)
+library(ggplot2)
+library(janitor)
+library(readr)
+library(tidyr)
+library(plotly)
+library(reshape2)
+library(dplyr)
+library(ggpubr)
+library(kableExtra)
+library(DT)
+library(data.table)
+
+# 1.
+
+my_data <- read_csv("gapminder_clean.csv")
+my_data <- clean_names(my_data)
+
+# 2.
+
+s_columns <- select(
+  my_data,
+  "year",
+  "gdp_percap",
+  "co2_emissions_metric_tons_per_capita"
+)
+s_columns_1962_na <- filter(s_columns, year == 1962) %>%
+  drop_na()
+s_columns_1962_na_no_outlier <-
+  filter(s_columns, year == 1962 & gdp_percap < 75000) %>%
+  drop_na()
+s_columns_na <- s_columns %>%
+  drop_na()
+
+
+plot1 <- ggplot(data = s_columns_1962_na) +
+  geom_point(mapping = aes(
+    x = co2_emissions_metric_tons_per_capita,
+    y = gdp_percap
+  ))
+
+plot1_no_outlier <- ggplot(data = s_columns_1962_na_no_outlier) +
+  geom_point(mapping = aes(
+    x = co2_emissions_metric_tons_per_capita,
+    y = gdp_percap
+  ))
+
+# 3.
+
+res3 <- cor.test(s_columns_1962_na$co2_emissions_metric_tons_per_capita,
+  s_columns_1962_na$gdp_percap,
+  method = "spearman"
+)
+
+# 4.
+
+# corr by year
+corr_by_year <- s_columns_na %>%
+  group_by(year) %>%
+  summarize(cor = cor(co2_emissions_metric_tons_per_capita,
+    gdp_percap,
+    method = "spearman"
+  )) %>%
+  arrange(desc(cor))
+
+# q. 5
+s5_columns <- select(
+  my_data, "year",
+  "gdp_percap",
+  "co2_emissions_metric_tons_per_capita",
+  "continent",
+  "pop"
+)
+s5_columns_2002 <- filter(s5_columns, year == 2002)
+s5_columns_2002_na <- drop_na(s5_columns_2002)
+
+
+fig5 <- plot_ly(
+  data = s5_columns_2002_na,
+  x = ~co2_emissions_metric_tons_per_capita,
+  y = ~gdp_percap,
+  type = "scatter",
+  color = ~continent,
+  size = ~pop
+) %>% layout(
+  title = "CO2 emissions vs. GDP in 2002",
+  xaxis = list(title = "CO2 emission metric tons per Cap"),
+  yaxis = list(title = "GDP per Cap")
+)
+
+
+
+fig5_ <- ggplotly(fig5)
+
+# q. #6
+
+s6_columns <- select(
+  my_data,
+  "energy_use_kg_of_oil_equivalent_per_capita",
+  "continent",
+  "country_name",
+  "pop",
+  "year"
+)
+
+s6_columns <- drop_na(s6_columns)
+s6_columns <- arrange(s6_columns, continent, year)
+
+s6_summary <- s6_columns %>%
+  group_by(continent, year) %>%
+  summarise_at(
+    vars(energy_use_kg_of_oil_equivalent_per_capita),
+    list(energy_use_kg_of_oil_equivalent_per_capita = mean)
+  )
+
+plot6 <- s6_summary %>%
+  ggplot(aes(
+    x = year,
+    y = energy_use_kg_of_oil_equivalent_per_capita,
+    group = continent, color = continent
+  )) +
+  geom_line()
+
+# temp
+s6_columns_facet <- filter(s6_columns, year >= 1980 & year <= 1995)
+
+s6_years <- unique(s6_columns[c("year")])
+
+# Box Plot
+plot6_ <- ggboxplot(s6_columns,
+  y = "energy_use_kg_of_oil_equivalent_per_capita",
+  x = "continent",
+  ylab = "Energy use (kg of oil equivalent per capita)",
+  xlab = FALSE
+)
+plot6_facet <- ggboxplot(s6_columns_facet,
+  y = "energy_use_kg_of_oil_equivalent_per_capita",
+  x = "continent",
+  ylab = "Energy use (kg of oil equivalent per capita)",
+  xlab = FALSE
+)
+
+# q. #7
+
+# Compute the analysis of variance
+aov <- aov(energy_use_kg_of_oil_equivalent_per_capita ~ continent,
+  data = s6_columns
+)
+# Summary of the analysis
+summary_aov <- summary(aov)
+
+s7_columns <- select(
+  my_data,
+  "imports_of_goods_and_services_percent_of_gdp",
+  "continent",
+  "country_name",
+  "year"
+) %>%
+  filter(year >= 1990) %>%
+  drop_na()
+
+s7_summary <- s7_columns %>%
+  group_by(continent, year) %>%
+  summarise_at(
+    vars(imports_of_goods_and_services_percent_of_gdp),
+    list(imports_of_goods_and_services_percent_of_gdp = mean)
+  )
+
+
+plot7 <- s7_summary %>%
+  ggplot(aes(
+    x = year,
+    y = imports_of_goods_and_services_percent_of_gdp,
+    group = continent, color = continent
+  )) +
+  geom_line()
+
+# Box Plot
+s7_columns_europe_asia <- s7_columns %>%
+  filter(continent == "Europe" | continent == "Asia")
+
+plot7_ <- ggboxplot(s7_columns_europe_asia,
+  y = "imports_of_goods_and_services_percent_of_gdp",
+  x = "continent",
+  ylab = "Imports of goods and services (% of GDP)",
+  xlab = "Continent"
+)
+
+# Compute the analysis of variance
+aov7 <- aov(imports_of_goods_and_services_percent_of_gdp ~ continent,
+  data = s7_columns_europe_asia
+)
+# Summary of the analysis
+summary_aov7 <- summary(aov7)
+
+# q. #8
+
+s8_columns <- select(
+  my_data,
+  "population_density_people_per_sq_km_of_land_area",
+  "country_name",
+  "year"
+) %>% drop_na()
+
+s8_ranks <- s8_columns %>%
+  group_by(year) %>%
+  mutate(rank = order(order(population_density_people_per_sq_km_of_land_area,
+    decreasing = TRUE
+  )))
+
+s8_ranks <- s8_ranks[with(s8_ranks, order(year, rank)), ]
+
+s8_mean_rank <- s8_ranks %>%
+  group_by(country_name) %>%
+  summarise_at(
+    vars(rank),
+    list(rank = mean)
+  )
+
+s8_mean_rank <- s8_mean_rank[with(s8_mean_rank, order(rank)), ]
+
+# q. #9
+
+# get first and last years for each country
+s9_columns <- select(
+  my_data,
+  "life_expectancy_at_birth_total_years",
+  "country_name",
+  "year"
+) %>% drop_na()
+
+# sort by country, year
+s9_columns <- s9_columns[order(s9_columns$country_name, s9_columns$year), ]
+
+# get first and last year for each country
+s9_first_last_year <- s9_columns %>%
+  group_by(country_name) %>%
+  dplyr::mutate(
+    first_year = dplyr::first(year),
+    last_year = dplyr::last(year)
+  ) %>%
+  filter(row_number() == 1) %>%
+  subset(select = c(country_name, first_year, last_year))
+
+# get first and last life expectancy for each country
+s9_first_last_life_expectancy <- s9_columns %>%
+  group_by(country_name) %>%
+  dplyr::mutate(
+    earliest_life_expectancy =
+      dplyr::first(life_expectancy_at_birth_total_years),
+    latest_life_expectancy =
+      dplyr::last(life_expectancy_at_birth_total_years)
+  ) %>%
+  filter(row_number() == 1) %>%
+  subset(select = c(country_name
+                    , earliest_life_expectancy
+                    , latest_life_expectancy)) %>%
+  mutate(latest_life_expectancy = round(latest_life_expectancy)) %>%
+  mutate(earliest_life_expectancy = round(earliest_life_expectancy)) %>%
+  mutate(change = latest_life_expectancy - earliest_life_expectancy) %>%
+  arrange(desc(change))
+
+s9_first_last <- merge(s9_first_last_year,
+  s9_first_last_life_expectancy,
+  by = "country_name"
+) %>%
+  arrange(desc(change))
+```
+
+
+
+In this assignment, we will be analyzing relationships among macroeconomic and demographic indicators such as Co2 Emissions, GDP, population, energy use, imports and exports and life expectancy in countries around the world between 1992 and 2007.
+
+## CO2 emissions and GDP {.tabset}
+
+<br>
+We will focus in the first analysis on the relationship between CO2 emissions (metric tons) per capita and GDP per capita.  The chart in the 'With Outlier' tab shows the CO2 emissions per capita vs. GDP per capita in 1962. There is a clear positive correlation between CO2 emissions per cap and GDP per cap.  One outlier point in the upper right, while consistent with the positive relationship, is skewing the chart.  The 'Outlier Removed' tab shows the same chart with the outlier removed:
+
+
+<br>
+
+### With Outlier
+
+```{r fig.asp = 0.8, fig.width = 5, echo=FALSE}
+
+
+plot1 + ggtitle("CO2 emissions vs. GDP in 1962") +
+  labs(x = "CO2 emission metric tons per Cap", y = "GDP Per Cap") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+### Outlier Removed
+
+```{r fig.asp = 0.8, fig.width = 5, echo=FALSE}
+
+
+plot1_no_outlier + ggtitle("CO2 emissions vs. GDP in 1962") +
+  labs(x = "CO2 emission metric tons per Cap", y = "GDP Per Cap") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+## {-}
+
+We would like to determine the correlation between CO2 emissions and GDP.  I've chosen to use the Spearman correlation, since its 3 assumptions are satisfied: the variables are interval variables, they are paired (they are 2 quantities drawn from each country in a specific year), and there is a monotonic relationship between the variables (as one variable increases, the second variable increases). Also, we see from plotting Co2 emissions and GDP per cap individually that Pearson's assumption of normality is _not_ satisfied:
+
+#### Normalization check {.tabset}
+
+##### Co2 Emissions per cap
+
+```{r fig.asp = 0.8, fig.width = 5, echo=FALSE, warning = FALSE, message = FALSE}
+ggplot(
+  data = s_columns_1962_na,
+  mapping = aes(x = co2_emissions_metric_tons_per_capita)
+) +
+  geom_histogram(aes(y = ..density..),
+    fill = "bisque", color = "white", alpha = 0.7
+  ) +
+  geom_density() +
+  geom_rug() +
+  labs(x = "CO2 emission metric tons per Cap") +
+  theme_minimal()
+```
+
+
+##### GDP per cap
+
+
+```{r fig.asp = 0.8, fig.width = 5, echo=FALSE, warning = FALSE, message = FALSE}
+ggplot(data = s_columns_1962_na, mapping = aes(x = gdp_percap)) +
+  geom_histogram(aes(y = ..density..),
+    fill = "bisque",
+    color = "white",
+    alpha = 0.7
+  ) +
+  geom_density() +
+  geom_rug() +
+  labs(x = "GDP per Cap") +
+  theme_minimal()
+```
+
+
+## {-}
+
+On the filtered 1962 data, the (Spearman) correlation between CO2 emissions (in metric tons) and GDP Percent is:
+
+**0.854 (p-value 2.2e-16)**
+
+Looking at all years, we would like to know in what year the correlation between CO2 emissions metric tons and GDP Percent the strongest:
+
+
+```{r, echo=FALSE, warning = FALSE, message = FALSE}
+
+
+corr_by_year %>%
+  mutate(cor = round(cor, digits = 3)) %>%
+  kable("html") %>%
+  kable_styling(full_width = FALSE)
+```
+
+The highest correlation **0.938** is in **2002**.
+
+Note: I have dropped rows with 'NA' values in either the Year, CO2, or GDP per cap columns in the input data.
+
+<br>
+
+In this plot, we've filtered the data to 2002. The point size is determined by the population and the color is determined by the continent:
+
+<br>
+
+```{r fig.asp = 0.8, fig.width = 5, echo=FALSE, warning = FALSE, message = FALSE}
+
+fig5_
+```
+
+## Continent and Energy Use {.tabset}
+
+What is the relationship between continent and energy use? Averaging over the per capita energy use in each nation of each continent, we have the following trend lines, showing that the continents are generally increasing, except for Africa which has remained relatively flat, and the Americas, which spiked pre-1970.
+
+```{r fig.asp = 0.8, fig.width = 5, echo=FALSE}
+
+
+plot6 + ggtitle("Continent vs. Energy Use") +
+  labs(
+    x = "Year",
+    y = "Energy use (kg of oil equivalent per capita)"
+  ) +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+To examine the effect of continent on energy use, we can first plot the distribution of per capita energy use among the countries on each continent.  In the first tab, I've included all years.  In the second tab, I've faceted the years 1982, 1987 and 1992 to get a sense of the amount of change in Energy distribution in each country:
+
+### 1962-2007
+
+```{r fig.asp = 0.8, fig.width = 5, echo=FALSE}
+
+
+plot6_ + ggtitle("1962-2007") + theme(plot.title = element_text(hjust = 0.5))
+```
+<br>
+
+### 1982, 1987 and 1992
+
+```{r fig.asp = 0.8, fig.width = 5, echo=FALSE}
+
+
+plot6_facet +
+  facet_grid(year ~ .) +
+  ggtitle("1982, 1987, 1992") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+## {-}
+
+
+Are the differences among the continents significant? 
+
+An ANOVA test (factor=Continent) returns p-value \<0.0001, allowing us to reject the null hypothesis that the continents' mean energy usage are all the same:
+
+```{r, echo=FALSE}
+
+summary_aov
+```
+
+## Imports of Goods and Service in Europe vs. Asia
+
+Is there a significant difference between Europe and Asia with respect to 'Imports of goods and services (% of GDP)' in the years after 1990? If we plot the % of GDP figure across all the countries of each continent and examine the trend, the slope is generally increasing for all continents:
+
+```{r fig.asp = 0.8, fig.width = 5, echo=FALSE}
+
+
+plot7 + ggtitle("Imports of goods and services (% of GDP) 1990+") +
+  labs(x = "Year", y = "Imports of goods and services (% of GDP)") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Visually, the distribution for Europe in Asia in these years seems quite close:
+
+```{r fig.asp = 0.8, fig.width = 5, echo=FALSE}
+
+
+plot7_ + ggtitle("1990+") + theme(plot.title = element_text(hjust = 0.5))
+```
+
+We can use a one way ANOVA test with factor (independent variable) 'Continent' and dependent variable 'Imports of goods and services (% of GDP)' to test the null hypothesis that there is no difference in the means of Imports between Europe and Asia in the years after 1990.  The results yielded a p-value of 0.158, which does _not_ allow us to reject the null hypothesis, and leaves us to conclude that there is no difference between the mean Imports of Europe in Asia post-1990:
+
+```{r, echo=FALSE}
+
+summary_aov7
+```
+
+## Population Density
+
+What is the country (or countries) that has the highest `'Population density (people per sq. km of land area)'` across all years? Countries can be ranked according to their population density within each year:
+
+```{r, echo=FALSE}
+
+datatable(setcolorder(
+  s8_ranks[, !(names(s8_ranks) %in% "continent")],
+  c(
+    "country_name",
+    "population_density_people_per_sq_km_of_land_area",
+    "year",
+    "rank"
+  )
+))
+```
+
+After averaging the rank for each country across years, we see that Macao SAR, China and Monaco are tied for the highest average ranking in population density across the years:
+
+
+```{r, echo=FALSE}
+
+datatable(s8_mean_rank)
+```
+
+## Life Expectancy
+
+What country (or countries) has shown the greatest increase in `'Life expectancy at birth, total (years)'` since 1962? The chart below shows the earliest and latest life expectancies available in the data for each country (usually 1962 and 2007 with some exceptions) and the change in life expectancy over the time period, sorted by largest change.  Maldives showed the greatest increase (37 years) in life expectancy:
+
+```{r, echo=FALSE}
+
+datatable(s9_first_last)
+```

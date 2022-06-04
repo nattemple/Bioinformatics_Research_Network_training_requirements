@@ -1,0 +1,5 @@
+# extract subject ids
+subject_ids <- list()
+for(i in 1:length(rse$characteristics)){
+  subject_ids[length(subject_ids)+1] <- as.numeric(substring(rse$characteristics[[i]][[1]],14,))
+}

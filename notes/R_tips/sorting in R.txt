@@ -1,0 +1,1 @@
+s8_ranks <- s8_ranks[with(s8_ranks, order(year,ranks)), ]

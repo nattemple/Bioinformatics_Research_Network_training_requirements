@@ -1,0 +1,7 @@
+$ conda create -n salmonEnv
+$ source activate salmonEnv
+# leave environment
+$ conda deactivate
+# delete environment
+$ conda env remove -n salmonEnv
+

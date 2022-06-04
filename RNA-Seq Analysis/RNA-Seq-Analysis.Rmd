@@ -1,0 +1,187 @@
+---
+title: "RNA-Seq Analysis assignment"
+author: "Nathan Temple"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+---
+
+```{r, echo=TRUE, results="hide", message=FALSE, warning=FALSE, eval=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+
+## Load libraries
+library(rlang)
+library(stringr)
+library(data.table)
+library(DT)
+library(dplyr)
+suppressMessages( library("DESeq2") )
+
+
+```
+
+```{r, echo=TRUE, results="hide", message=FALSE, warning=FALSE, eval=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+suppressMessages( library("recount") )
+suppressMessages( library(org.Hs.eg.db) )
+suppressMessages( library( AnnotationDbi ) )
+
+# from https://jhubiostatistics.shinyapps.io/recount/
+# 'IL-1ß and SERPINA3 are markers of an aggressive Barretts Oesophagus phenotype identified using mRNA sequencing'
+accession='SRP043694'
+
+## Download the RangedSummarizedExperiment object
+url <- download_study(accession)
+
+## Load the data
+load(file.path(accession, 'rse_gene.Rdata'))
+
+# truncate the ensemble id version number from the rownames
+rownames = rownames( rse_gene )
+for(i in 1:length(rownames)){
+  rownames[i] <- gsub("\\..*","",rownames[i])
+}
+rownames( rse_gene ) <- rownames
+
+# truncate also the gene_id column
+rowdata=rowData(rse_gene)
+rowdata$gene_id = gsub("\\..*","",rowdata$gene_id)
+rowData(rse_gene)=rowdata
+
+# use raw counts
+rse <- rse_gene
+
+# create factor cond: Simple intestinal metaplasia vs. Low Grade Dsyplasia vs. High Grade Dsyplasia
+colData(rse) <- as.data.frame(colData(rse)) %>% 
+  mutate(cond = substring(lapply(characteristics, `[[`, 1), 22)) %>%
+  mutate(cond=str_replace_all(cond, " ", "_")) %>%
+  DataFrame
+
+# convert to factor
+rse$cond <- factor(rse$cond)
+
+# Differential Expression analysis
+dds <- DESeqDataSet(rse, design = ~ cond)
+dds <- DESeq(dds)
+res <- results(dds, contrast = c("cond", "High_Grade_Dsyplasia", "Simple_intestinal_metaplasia"))
+
+# sort by padj
+res <- res[with(res, order(padj)), ]
+
+# set up differentially expressed gene selection criteria 
+pThr        <- 0.01   # for adj. p-value threshold (<= 0.01)
+logFCThr    <- 1      # for log2 fold-change (at least 2 fold)
+baseMeanThr <- 30     # for average expression level (at least 30 counts).
+
+# annotate sigRes
+anno <- AnnotationDbi::select(org.Hs.eg.db, rownames( res ),
+                              columns=c("ENSEMBL", "ENTREZID", "SYMBOL", "GENENAME"), 
+                              keytype="ENSEMBL")
+
+res = cbind( ENSEMBL = rownames( res), res )
+outTable <- left_join( as.data.frame( res ), anno )
+
+idx = which( outTable$padj <= pThr 
+             & abs( outTable$log2FoldChange ) >= logFCThr 
+             & outTable$baseMean >= baseMeanThr 
+)
+sigRes = outTable[idx, ]
+
+upregulated <- filter(sigRes, log2FoldChange > 0)
+downregulated <- filter(sigRes, log2FoldChange < 0)
+
+# perform regularized-logarithm transformation (rlog)
+rld <- rlog(dds)
+
+save(sigRes, file="sigRes.RData")
+save(upregulated, file="upregulated.RData")
+save(downregulated, file="downregulated.RData")
+save(rld, file="rld.RData")
+
+```
+
+In this assignment, we analyze RNA-Seq data from an experiment designed to detect biomarkers for differential outcomes in Barrett's oesophagus (BO): Simple intestinal metaplasia vs. Low Grade Dsyplasia vs. High Grade Dsyplasia.  RNA was extracted from 21 patients diagnosed by GI pathologists into the three histological grades.  The data for this assignment was extracted from the Recount2 database and analyzed with the DESeq2 software.
+
+All code for extracting and analyzing this dataset is available in the folded code window button in the top right.  
+
+## Differentially Expressed Genes {.tabset}
+
+We extract differentially expressed genes using the contrast `High_Grade_Dsyplasia` vs. `Simple_intestinal_metaplasia`.  Criteria for thresholding differentially expressed genes are:
+
++ Absolute Log-2 fold change of at least 1 (at least doubling or halving of gene expression)
++ Adjusted p-value < 0.01
++ Minimum expression level of at least 30 counts
+
+116 genes were up-reulated and 74 genes down-regulated:
+
+### Up-regulated
+
+```{r, echo=FALSE}
+
+load("upregulated.RData")
+
+datatable(setcolorder(
+  subset(
+    upregulated %>%
+      mutate(baseMean = round(baseMean)) %>%
+      mutate(padj = signif(padj, 2)) %>%
+      mutate(log2FoldChange = round(log2FoldChange))
+    , select = c("ENSEMBL", "SYMBOL", "GENENAME", "baseMean", "log2FoldChange", "padj") ),
+  c(
+    "ENSEMBL",
+    "SYMBOL",
+    "GENENAME",
+    "baseMean",
+    "log2FoldChange",
+    "padj"
+  )
+))
+
+```
+### Down-regulated
+
+```{r, echo=FALSE}
+
+load("downregulated.RData")
+
+datatable(setcolorder(
+  subset(
+    downregulated %>%
+      mutate(baseMean = round(baseMean)) %>%
+      mutate(padj = signif(padj, 2)) %>%
+      mutate(log2FoldChange = round(log2FoldChange))
+    , select = c("ENSEMBL", "SYMBOL", "GENENAME", "baseMean", "log2FoldChange", "padj") ),
+  c(
+    "ENSEMBL",
+    "SYMBOL",
+    "GENENAME",
+    "baseMean",
+    "log2FoldChange",
+    "padj"
+  )
+))
+
+```
+
+## PCA Plot
+
+```{r , fig.width=8, fig.height=8, fig.fullwidth=TRUE, echo=FALSE}
+
+load("rld.RData")
+
+pca_plot <- plotPCA(rld, intgroup = c("cond"))
+
+pca_plot 
+
+```
+
+## Volcano Plot
+
+## Heatmap
+
+## GSEA
+
