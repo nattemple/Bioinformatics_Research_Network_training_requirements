@@ -409,7 +409,7 @@ To examine the effect of continent on energy use, we can first plot the distribu
 ```{r fig.asp = 0.8, fig.width = 5, echo=FALSE}
 
 
-plot6_ + ggtitle("1962-2007") + theme(plot.title = element_text(hjust = 0.5))
+plot6_ + scale_fill_discrete(name = "Dose", labels = c("A", "B", "C"))
 ```
 <br>
 

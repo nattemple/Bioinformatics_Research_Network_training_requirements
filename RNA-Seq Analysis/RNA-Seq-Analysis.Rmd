@@ -167,7 +167,7 @@ datatable(setcolorder(
 
 ```
 
-## PCA Plot
+## Principal Components Analysis Plot
 
 ```{r , fig.width=8, fig.height=8, fig.fullwidth=TRUE, echo=FALSE}
 
@@ -175,8 +175,9 @@ load("rld.RData")
 
 pca_plot <- plotPCA(rld, intgroup = c("cond"))
 
-pca_plot 
+library(ggplot2)
 
+pca_plot 
 ```
 
 ## Volcano Plot
