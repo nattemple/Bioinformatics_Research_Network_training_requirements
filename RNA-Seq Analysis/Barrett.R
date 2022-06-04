@@ -88,3 +88,32 @@ sigRes
 rld <- rlog(dds)
 
 pca_plot <- plotPCA(rld, intgroup = c("cond"))
+
+# Volcano plot
+
+library( EnhancedVolcano )
+
+EnhancedVolcano( as.data.frame(sigRes), lab = sigRes$SYMBOL, 
+                 x = 'log2FoldChange', y = 'padj'
+#                 ,xlim = c(-8, 8), title = ' '
+              #   ,pCutoff = 0.01, FCcutoff = 2
+)              
+
+# Heatmap
+
+library(pheatmap)
+library(PoiClaClu)
+library(RColorBrewer)
+
+# plot heatmap of Poisson distances between samples
+# use Poisson distance for raw (non-normalized) count data
+# use Euclidean distance for data normalized by regularized-logarithm transformation (rlog) or variance stablization transfromation (vst)
+poisd <- PoissonDistance(t(counts(dds)))
+samplePoisDistMatrix <- as.matrix( poisd$dd)
+rownames(samplePoisDistMatrix) <- paste(dds$cond, dds$cell, sep=" - " )
+colnames(samplePoisDistMatrix) <- NULL
+colors = colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+pheatmap(samplePoisDistMatrix,
+         clustering_distance_rows = poisd$dd,
+         clustering_distance_cols = poisd$dd,
+         col = colors)
