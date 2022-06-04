@@ -7,6 +7,8 @@ output:
     toc: true
     toc_float: true
     code_folding: hide
+params:
+  recompile: TRUE # rerun second code chunk below
 ---
 
 ```{r, echo=TRUE, results="hide", message=FALSE, warning=FALSE, eval=TRUE}
@@ -33,11 +35,11 @@ study <- "Barretts"
 
 # Bariatric
 # from https://jhubiostatistics.shinyapps.io/recount/
-study <- "Bariatric"
+#study <- "Bariatric"
 
 ```
 
-```{r, echo=TRUE, results="hide", message=FALSE, warning=FALSE, eval=FALSE}
+```{r, echo=TRUE, results="hide", message=FALSE, warning=FALSE, eval=params$recompile}
 knitr::opts_chunk$set(echo = TRUE)
 
 suppressMessages( library("recount") )
@@ -85,6 +87,17 @@ if (study=="Barretts") {
     DataFrame
 }
 
+# Barretts - focus on low vs. high dysplasia for now
+if (study=="Barretts") {
+  rse <-
+    subset(rse
+           , select = colData(rse)$cond %in% 
+             c("Simple_intestinal_metaplasia", "High_Grade_Dsyplasia"))
+}  
+  # Simple_intestinal_metaplasia
+  # High_Grade_Dsyplasia
+  # Low_Grade_Dsyplasia
+
 # convert to factor
 rse$cond <- factor(rse$cond)
 
@@ -93,7 +106,12 @@ dds <- DESeqDataSet(rse, design = ~ cond)
 dds <- DESeq(dds)
 
 if (study=="Barretts") {
-  res <- results(dds, contrast = c("cond", "High_Grade_Dsyplasia", "Simple_intestinal_metaplasia"))
+  res <- results(dds, contrast = c("cond"
+                                   , "High_Grade_Dsyplasia"
+                                   , "Simple_intestinal_metaplasia")) 
+  # Simple_intestinal_metaplasia
+  # High_Grade_Dsyplasia
+  # Low_Grade_Dsyplasia
 } else if (study=="Bariatric") {
   res <- results(dds, contrast = c("cond", "T3", "T0"))
 }
@@ -141,7 +159,7 @@ save(dds, file="dds.RData")
 
 ```
 
-In this assignment, we analyze RNA-Seq data from an experiment designed to detect biomarkers for differential outcomes in Barrett's oesophagus (BO): Simple intestinal metaplasia vs. Low Grade Dsyplasia vs. High Grade Dsyplasia.  RNA was extracted from 21 patients diagnosed by GI pathologists into the three histological grades.  The data for this assignment was extracted from the Recount2 database and analyzed with the DESeq2 software.
+In this assignment, we analyze RNA-Seq data from an experiment designed to detect biomarkers for differential outcomes in Barrett's oesophagus (BO): Simple intestinal metaplasia vs. Low Grade Dsyplasia vs. High Grade Dsyplasia.  RNA was extracted from 21 patients and diagnosed by GI pathologists into the three histological grades.  The data for this assignment was extracted from the Recount2 database and analyzed with the DESeq2 software.
 
 All code for extracting and analyzing this dataset is available in the folded code window button in the top right.  
 
