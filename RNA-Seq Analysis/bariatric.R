@@ -90,4 +90,3 @@ idx = which( outTable$padj <= pThr
 )
 sigRes = outTable[idx, ]
 sigRes
-

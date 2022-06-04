@@ -26,18 +26,31 @@ library(PoiClaClu)
 library(RColorBrewer)
 
 
+# Barretts
+# from https://jhubiostatistics.shinyapps.io/recount/
+# 'IL-1ß and SERPINA3 are markers of an aggressive Barretts Oesophagus phenotype identified using mRNA sequencing'
+study <- "Barretts"
+
+# Bariatric
+# from https://jhubiostatistics.shinyapps.io/recount/
+study <- "Bariatric"
+
 ```
 
-```{r, echo=TRUE, results="hide", message=FALSE, warning=FALSE, eval=TRUE}
+```{r, echo=TRUE, results="hide", message=FALSE, warning=FALSE, eval=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
 suppressMessages( library("recount") )
 suppressMessages( library(org.Hs.eg.db) )
 suppressMessages( library( AnnotationDbi ) )
 
-# from https://jhubiostatistics.shinyapps.io/recount/
-# 'IL-1ß and SERPINA3 are markers of an aggressive Barretts Oesophagus phenotype identified using mRNA sequencing'
-accession='SRP043694'
+if (study=="Barretts") {
+  accession='SRP043694'
+} else if (study=="Bariatric") {
+  accession='SRP055514'
+}
+
+
 
 ## Download the RangedSummarizedExperiment object
 url <- download_study(accession)
@@ -60,11 +73,17 @@ rowData(rse_gene)=rowdata
 # use raw counts
 rse <- rse_gene
 
-# create factor cond: Simple intestinal metaplasia vs. Low Grade Dsyplasia vs. High Grade Dsyplasia
-colData(rse) <- as.data.frame(colData(rse)) %>% 
-  mutate(cond = substring(lapply(characteristics, `[[`, 1), 22)) %>%
-  mutate(cond=str_replace_all(cond, " ", "_")) %>%
-  DataFrame
+
+if (study=="Barretts") {
+  colData(rse) <- as.data.frame(colData(rse)) %>% 
+    mutate(cond = substring(lapply(characteristics, `[[`, 1), 22)) %>%
+    mutate(cond=str_replace_all(cond, " ", "_")) %>%
+    DataFrame
+} else if (study=="Bariatric") {
+  colData(rse) <- as.data.frame(colData(rse)) %>% 
+    mutate(cond = substring(lapply(characteristics, `[[`, 2), 13, 14)) %>%
+    DataFrame
+}
 
 # convert to factor
 rse$cond <- factor(rse$cond)
@@ -72,15 +91,26 @@ rse$cond <- factor(rse$cond)
 # Differential Expression analysis
 dds <- DESeqDataSet(rse, design = ~ cond)
 dds <- DESeq(dds)
-res <- results(dds, contrast = c("cond", "High_Grade_Dsyplasia", "Simple_intestinal_metaplasia"))
+
+if (study=="Barretts") {
+  res <- results(dds, contrast = c("cond", "High_Grade_Dsyplasia", "Simple_intestinal_metaplasia"))
+} else if (study=="Bariatric") {
+  res <- results(dds, contrast = c("cond", "T3", "T0"))
+}
 
 # sort by padj
 res <- res[with(res, order(padj)), ]
 
 # set up differentially expressed gene selection criteria 
-pThr        <- 0.01   # for adj. p-value threshold (<= 0.01)
-logFCThr    <- 1      # for log2 fold-change (at least 2 fold)
-baseMeanThr <- 30     # for average expression level (at least 30 counts).
+if (study=="Barretts") {
+    pThr        <- 0.01   # for adj. p-value threshold (<= 0.01)
+    logFCThr    <- 1      # for log2 fold-change (at least 2 fold)
+    baseMeanThr <- 30     # for average expression level (at least 30 counts).
+} else if (study=="Bariatric") {
+    pThr        <- 0.01   # for adj. p-value threshold (<= 0.01)
+    logFCThr    <- .1      # for log2 fold-change (at least 2 fold)
+    baseMeanThr <- 20     # for average expression level (at least 20 counts).
+}
 
 # annotate sigRes
 anno <- AnnotationDbi::select(org.Hs.eg.db, rownames( res ),
@@ -100,7 +130,8 @@ upregulated <- filter(sigRes, log2FoldChange > 0)
 downregulated <- filter(sigRes, log2FoldChange < 0)
 
 # perform regularized-logarithm transformation (rlog)
-rld <- rlog(dds)
+#rld <- rlog(dds)
+rld <- vst(dds)
 
 save(sigRes, file="sigRes.RData")
 save(upregulated, file="upregulated.RData")
@@ -135,7 +166,7 @@ datatable(setcolorder(
     upregulated %>%
       mutate(baseMean = round(baseMean)) %>%
       mutate(padj = signif(padj, 2)) %>%
-      mutate(log2FoldChange = round(log2FoldChange))
+      mutate(log2FoldChange = round(log2FoldChange, 3))
     , select = c("ENSEMBL", "SYMBOL", "GENENAME", "baseMean", "log2FoldChange", "padj") ),
   c(
     "ENSEMBL",
@@ -159,7 +190,7 @@ datatable(setcolorder(
     downregulated %>%
       mutate(baseMean = round(baseMean)) %>%
       mutate(padj = signif(padj, 2)) %>%
-      mutate(log2FoldChange = round(log2FoldChange))
+      mutate(log2FoldChange = round(log2FoldChange, 3))
     , select = c("ENSEMBL", "SYMBOL", "GENENAME", "baseMean", "log2FoldChange", "padj") ),
   c(
     "ENSEMBL",
@@ -213,8 +244,8 @@ load("dds.RData")
 # use Euclidean distance for data normalized by regularized-logarithm transformation (rlog) or variance stablization transfromation (vst)
 poisd <- PoissonDistance(t(counts(dds)))
 samplePoisDistMatrix <- as.matrix( poisd$dd)
-rownames(samplePoisDistMatrix) <- paste(dds$cond, dds$cell, sep=" - " )
-colnames(samplePoisDistMatrix) <- NULL
+rownames(samplePoisDistMatrix) <- dds$cond #paste(dds$cond, dds$cell, sep=" - " )
+colnames(samplePoisDistMatrix) <- dds$cond #paste(dds$cond, dds$cell, sep=" - " ) #NULL
 colors = colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
 heatmap_plot <-
 pheatmap(samplePoisDistMatrix,
