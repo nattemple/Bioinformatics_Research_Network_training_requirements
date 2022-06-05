@@ -47,13 +47,19 @@ rse <- rse_gene
 colData(rse) <- as.data.frame(colData(rse)) %>% 
   mutate(cond = substring(lapply(characteristics, `[[`, 1), 22)) %>%
   mutate(cond=str_replace_all(cond, " ", "_")) %>%
+  mutate(cond=str_replace_all(cond, "Dsyplasia", "Dysplasia")) %>% # correct typo
   DataFrame
 
 # focus on low vs. high dysplasia for now
 rse <-
   subset(rse
          , select = colData(rse)$cond %in% 
-           c("Low_Grade_Dsyplasia", "High_Grade_Dsyplasia"))
+           c("Simple_intestinal_metaplasia", "High_Grade_Dysplasia"))
+colData(rse) <- as.data.frame(colData(rse)) %>% 
+  # rename to Metaplasia vs. Dysplasia
+  mutate(cond=str_replace_all(cond, "Simple_intestinal_metaplasia", "Metaplasia")) %>% 
+  mutate(cond=str_replace_all(cond, "High_Grade_Dysplasia", "Dysplasia")) %>%
+  DataFrame
 
 # convert to factor
 rse$cond <- factor(rse$cond)

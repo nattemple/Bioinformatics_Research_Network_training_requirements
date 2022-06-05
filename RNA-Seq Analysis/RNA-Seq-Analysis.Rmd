@@ -8,7 +8,7 @@ output:
     toc_float: true
     code_folding: hide
 params:
-  recompile: FALSE # rerun second code chunk below
+  recompile: TRUE # rerun second code chunk below
 ---
 
 ```{r, echo=TRUE, results="hide", message=FALSE, warning=FALSE, eval=TRUE}
@@ -75,9 +75,13 @@ rse <- rse_gene
 
 
 if (study=="Barretts") {
+  # Simple_intestinal_metaplasia
+  # High_Grade_Dysplasia
+  # Low_Grade_Dysplasia
   colData(rse) <- as.data.frame(colData(rse)) %>% 
     mutate(cond = substring(lapply(characteristics, `[[`, 1), 22)) %>%
     mutate(cond=str_replace_all(cond, " ", "_")) %>%
+    mutate(cond=str_replace_all(cond, "Dsyplasia", "Dysplasia")) %>% # correct typo
     DataFrame
 } else if (study=="Bariatric") {
   colData(rse) <- as.data.frame(colData(rse)) %>% 
@@ -90,11 +94,13 @@ if (study=="Barretts") {
   rse <-
     subset(rse
            , select = colData(rse)$cond %in% 
-             c("Simple_intestinal_metaplasia", "High_Grade_Dsyplasia"))
+             c("Simple_intestinal_metaplasia", "High_Grade_Dysplasia"))
+    colData(rse) <- as.data.frame(colData(rse)) %>% 
+      # rename to Metaplasia vs. Dysplasia
+      mutate(cond=str_replace_all(cond, "Simple_intestinal_metaplasia", "Metaplasia")) %>% 
+      mutate(cond=str_replace_all(cond, "High_Grade_Dysplasia", "Dysplasia")) %>%
+      DataFrame
 }  
-  # Simple_intestinal_metaplasia
-  # High_Grade_Dsyplasia
-  # Low_Grade_Dsyplasia
 
 # convert to factor
 rse$cond <- factor(rse$cond)
@@ -105,11 +111,8 @@ dds <- DESeq(dds)
 
 if (study=="Barretts") {
   res <- results(dds, contrast = c("cond"
-                                   , "High_Grade_Dsyplasia"
-                                   , "Simple_intestinal_metaplasia")) 
-  # Simple_intestinal_metaplasia
-  # High_Grade_Dsyplasia
-  # Low_Grade_Dsyplasia
+                                   , "Dysplasia"
+                                   , "Metaplasia")) 
 } else if (study=="Bariatric") {
   res <- results(dds, contrast = c("cond", "T3", "T0"))
 }
@@ -157,7 +160,7 @@ save(dds, file="dds.RData")
 
 ```
 
-In this assignment, we analyze RNA-Seq data from an experiment designed to detect biomarkers for differential outcomes in Barrett's oesophagus (BO): `Simple intestinal metaplasia` vs. `Low Grade Dsyplasia` vs. `High Grade Dsyplasia`.  RNA was extracted from 21 patients and diagnosed by GI pathologists into the three histological grades.  We focus in this analysis in differentially expressed genes in `Simple intestinal metaplasia` vs. `High Grade Dsyplasia`.  The data for this assignment was extracted from the Recount2 database and analyzed with the DESeq2 software.
+In this assignment, we analyze RNA-Seq data from an experiment designed to detect biomarkers for differential outcomes in Barrett's oesophagus (BO). RNA was extracted from 21 patients and diagnosed by GI pathologists into the three histological grades: `Simple intestinal metaplasia` vs. `Low Grade Dysplasia` vs. `High Grade Dysplasia`.    We focus in this analysis in differentially expressed genes in `Simple intestinal metaplasia` vs. `High Grade Dysplasia` which we will refer henceforth as `Metaplasia` and `Dysplasia`.  The data for this assignment was extracted from the Recount2 database and analyzed with the DESeq2 software.
 
 All code for extracting and analyzing this dataset is available in the folded code window button in the top right.  
 
