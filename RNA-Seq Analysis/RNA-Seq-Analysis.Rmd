@@ -8,7 +8,7 @@ output:
     toc_float: true
     code_folding: hide
 params:
-  recompile: TRUE # rerun second code chunk below
+  recompile: FALSE # rerun second code chunk below
 ---
 
 ```{r, echo=TRUE, results="hide", message=FALSE, warning=FALSE, eval=TRUE}
@@ -33,10 +33,6 @@ library(RColorBrewer)
 # 'IL-1ß and SERPINA3 are markers of an aggressive Barretts Oesophagus phenotype identified using mRNA sequencing'
 study <- "Barretts"
 
-# Bariatric
-# from https://jhubiostatistics.shinyapps.io/recount/
-#study <- "Bariatric"
-
 ```
 
 ```{r, echo=TRUE, results="hide", message=FALSE, warning=FALSE, eval=params$recompile}
@@ -46,11 +42,7 @@ suppressMessages( library("recount") )
 suppressMessages( library(org.Hs.eg.db) )
 suppressMessages( library( AnnotationDbi ) )
 
-if (study=="Barretts") {
-  accession='SRP043694'
-} else if (study=="Bariatric") {
-  accession='SRP055514'
-}
+accession='SRP043694'
 
 ## Download the RangedSummarizedExperiment object
 url <- download_study(accession)
@@ -74,33 +66,25 @@ rowData(rse_gene)=rowdata
 rse <- rse_gene
 
 
-if (study=="Barretts") {
-  # Simple_intestinal_metaplasia
-  # High_Grade_Dysplasia
-  # Low_Grade_Dysplasia
-  colData(rse) <- as.data.frame(colData(rse)) %>% 
-    mutate(cond = substring(lapply(characteristics, `[[`, 1), 22)) %>%
-    mutate(cond=str_replace_all(cond, " ", "_")) %>%
-    mutate(cond=str_replace_all(cond, "Dsyplasia", "Dysplasia")) %>% # correct typo
-    DataFrame
-} else if (study=="Bariatric") {
-  colData(rse) <- as.data.frame(colData(rse)) %>% 
-    mutate(cond = substring(lapply(characteristics, `[[`, 2), 13, 14)) %>%
-    DataFrame
-}
+# Simple_intestinal_metaplasia
+# High_Grade_Dysplasia
+# Low_Grade_Dysplasia
+colData(rse) <- as.data.frame(colData(rse)) %>% 
+  mutate(cond = substring(lapply(characteristics, `[[`, 1), 22)) %>%
+  mutate(cond=str_replace_all(cond, " ", "_")) %>%
+  mutate(cond=str_replace_all(cond, "Dsyplasia", "Dysplasia")) %>% # correct typo
+  DataFrame
 
 # Barretts - focus on low vs. high dysplasia for now
-if (study=="Barretts") {
-  rse <-
-    subset(rse
-           , select = colData(rse)$cond %in% 
-             c("Simple_intestinal_metaplasia", "High_Grade_Dysplasia"))
-    colData(rse) <- as.data.frame(colData(rse)) %>% 
-      # rename to Metaplasia vs. Dysplasia
-      mutate(cond=str_replace_all(cond, "Simple_intestinal_metaplasia", "Metaplasia")) %>% 
-      mutate(cond=str_replace_all(cond, "High_Grade_Dysplasia", "Dysplasia")) %>%
-      DataFrame
-}  
+rse <-
+  subset(rse
+         , select = colData(rse)$cond %in% 
+           c("Simple_intestinal_metaplasia", "High_Grade_Dysplasia"))
+  colData(rse) <- as.data.frame(colData(rse)) %>% 
+    # rename to Metaplasia vs. Dysplasia
+    mutate(cond=str_replace_all(cond, "Simple_intestinal_metaplasia", "Metaplasia")) %>% 
+    mutate(cond=str_replace_all(cond, "High_Grade_Dysplasia", "Dysplasia")) %>%
+    DataFrame
 
 # convert to factor
 rse$cond <- factor(rse$cond)
@@ -109,27 +93,17 @@ rse$cond <- factor(rse$cond)
 dds <- DESeqDataSet(rse, design = ~ cond)
 dds <- DESeq(dds)
 
-if (study=="Barretts") {
-  res <- results(dds, contrast = c("cond"
-                                   , "Dysplasia"
-                                   , "Metaplasia")) 
-} else if (study=="Bariatric") {
-  res <- results(dds, contrast = c("cond", "T3", "T0"))
-}
+res <- results(dds, contrast = c("cond"
+                                 , "Dysplasia"
+                                 , "Metaplasia")) 
 
 # sort by padj
 res <- res[with(res, order(padj)), ]
 
 # set up differentially expressed gene selection criteria 
-if (study=="Barretts") {
-    pThr        <- 0.01   # for adj. p-value threshold (<= 0.01)
-    logFCThr    <- 1      # for log2 fold-change (at least 2 fold)
-    baseMeanThr <- 30     # for average expression level (at least 30 counts).
-} else if (study=="Bariatric") {
-    pThr        <- 0.01   # for adj. p-value threshold (<= 0.01)
-    logFCThr    <- .1      # for log2 fold-change (at least 2 fold)
-    baseMeanThr <- 20     # for average expression level (at least 20 counts).
-}
+pThr        <- 0.01   # for adj. p-value threshold (<= 0.01)
+logFCThr    <- 1      # for log2 fold-change (at least 2 fold)
+baseMeanThr <- 30     # for average expression level (at least 30 counts).
 
 # annotate sigRes
 anno <- AnnotationDbi::select(org.Hs.eg.db, rownames( res ),

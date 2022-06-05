@@ -1,0 +1,154 @@
+---
+title: "RNA-Seq-Analysis"
+output: html_document
+date: '2022-05-17'
+---
+
+## RNA-Seq Analysis
+
+This is for the RNA-Seq Analysis assignment in the Bionformatics Research Network.  The purpose of this project is to complete a full RNA-Seq analysis and interpret it in a biological context.  I've chosen 'mRNA-seq of Human Airway Epithelial Cells' dataset (SRA:SRP006676).  Please see https://trace.ncbi.nlm.nih.gov/Traces/sra/?study=SRP006676 for a full description.  The experiment investigates RNA expression in 4 sets of pooled biological samples: Never smokers (NS) vs. Smokers (S) and those with (C) and without (NC) lung cancer.  The cells are bronchial airway epithelial cells obtained during bronchoscopy.
+
+I obtained the data from the recount website https://jhubiostatistics.shinyapps.io/recount/ and used library(recount) as well as library(Deseq2)  (http://bioconductor.org/packages/devel/bioc/vignettes/DESeq2/inst/doc/DESeq2.html) from bioconductor.
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+# from https://jhubiostatistics.shinyapps.io/recount/
+
+# Load libraries
+library("recount")
+library(DT)
+library(data.table)
+library(dplyr)
+library("DESeq2")
+
+
+# Download the RangedSummarizedExperiment object
+#url <- download_study('SRP006676')
+
+# View the url for the file by printing the object url
+url
+
+# Load the data
+load(file.path('SRP006676', 'rse_gene.Rdata'))
+
+# add "cond" and "protocol" for DEG analysis
+
+rse_gene$cond <- case_when(
+  startsWith(rse_gene$title, "Healthy non-smoker") ~ "Healthy_non_smoker"
+  ,startsWith(rse_gene$title, "Healthy smoker") ~ "Healthy_smoker"
+  ,startsWith(rse_gene$title, "Smoker without Lung Cancer") ~ "Smoker_without_Lung_Cancer"
+  ,startsWith(rse_gene$title, "Smoker with Lung Cancer") ~ "Smoker_with_Lung_Cancer"
+)
+
+rse_gene$protocol <- case_when(
+  grepl("Illumina", rse_gene$title) ~ "Illumina"
+  ,grepl("NuGEN", rse_gene$title) ~ "NuGEN"
+)
+
+# create summaries of the column/sample data for display
+
+coldata = as.data.frame(colData(rse_gene))
+coldata1 = subset(coldata, select = -c(characteristics, cond, protocol) )
+coldata2 = subset(coldata, select = c(title, sample) )
+coldata3 = subset(coldata, select = c(title, sample, cond, protocol) )
+
+# analyse Differentially Expressed Genes:
+
+dds <- DESeqDataSet(rse_gene, design = ~ cond)
+dds <- DESeq(dds)
+res <- results(dds)
+
+# sort by padj
+res <- res[with(res, order(padj)), ]
+
+```
+
+
+To download the data, we can use R code templates provided by the recount website: 
+
+```{r eval=FALSE}
+## Load library
+library("recount")}
+
+## Download the RangedSummarizedExperiment object
+url <- download_study
+
+## display the generated url
+url
+[1] "http://duffel.rail.bio/recount/v2/SRP006676/rse_gene.Rdata"
+
+The following command will load the data:
+
+load(file.path('SRP006676', 'rse_gene.Rdata'))
+
+into rse_gene, which is a RangedSummarizedExperiment:
+  
+```
+
+```{r}
+
+rse_gene
+
+```
+There are 58,037 genes and 8 samples.  Here is a sample of the read counts:
+
+```{r}
+
+datatable(head(assay(rse_gene)))
+
+```
+
+The counts in the table are raw read counts, which will be normalized internally by the DeSeq2 library.
+
+## Differentially Expressed Genes
+
+We would like to find the differentially expressed genes (DEG) in the data.  The metadata in colData(rse_gene) will help us determine how to group the samples (the 8 columns) in the analysis performed by DeSEQ2.  I've included all the columns in the sample (column) metadata for browsing:
+
+<br>
+
+```{r}
+
+datatable(coldata1)
+
+```
+
+The only column that provides information on the experimental design of the pooled samples is the 'title' column:
+
+<br>
+
+```{r, echo=FALSE}
+
+datatable(setcolorder(coldata2, c("sample", "title")))
+```
+
+We would like to determine DEGs between smokers vs. nonsmokers and and those with Lung Cancer and those without Lung Cancer.  We define the "cond" and "protocol" columns and add them to the metadata:
+
+<br>
+
+```{r, echo=FALSE}
+
+datatable(coldata3)
+```
+
+The design of the analysis will be '~ cond'.  We create a DeSeq2 object, perform the analysis and extract the results:
+
+```{r eval=FALSE}
+
+library("DESeq2")
+dds <- DESeqDataSet(rse_gene, design = ~ cond)
+dds <- DESeq(dds)
+res <- results(dds)
+  
+```
+
+After sorting by descending 'padj' (adjusted p-value), we see that there are statistically significant differentially-expressed genes:
+
+<br>
+
+```{r, echo=FALSE}
+
+datatable(as.data.frame(head(res, 10000)))
+```
+
