@@ -8,7 +8,7 @@ output:
     toc_float: true
     code_folding: hide
 params:
-  recompile: TRUE # rerun second code chunk below
+  recompile: FALSE # rerun second code chunk below
 ---
 
 ```{r, echo=TRUE, results="hide", message=FALSE, warning=FALSE, eval=TRUE}
@@ -51,8 +51,6 @@ if (study=="Barretts") {
 } else if (study=="Bariatric") {
   accession='SRP055514'
 }
-
-
 
 ## Download the RangedSummarizedExperiment object
 url <- download_study(accession)
@@ -159,19 +157,19 @@ save(dds, file="dds.RData")
 
 ```
 
-In this assignment, we analyze RNA-Seq data from an experiment designed to detect biomarkers for differential outcomes in Barrett's oesophagus (BO): Simple intestinal metaplasia vs. Low Grade Dsyplasia vs. High Grade Dsyplasia.  RNA was extracted from 21 patients and diagnosed by GI pathologists into the three histological grades.  The data for this assignment was extracted from the Recount2 database and analyzed with the DESeq2 software.
+In this assignment, we analyze RNA-Seq data from an experiment designed to detect biomarkers for differential outcomes in Barrett's oesophagus (BO): `Simple intestinal metaplasia` vs. `Low Grade Dsyplasia` vs. `High Grade Dsyplasia`.  RNA was extracted from 21 patients and diagnosed by GI pathologists into the three histological grades.  We focus in this analysis in differentially expressed genes in `Simple intestinal metaplasia` vs. `High Grade Dsyplasia`.  The data for this assignment was extracted from the Recount2 database and analyzed with the DESeq2 software.
 
 All code for extracting and analyzing this dataset is available in the folded code window button in the top right.  
 
 ## Differentially Expressed Genes {.tabset}
 
-We extract differentially expressed genes using the contrast `High_Grade_Dsyplasia` vs. `Simple_intestinal_metaplasia`.  Criteria for thresholding differentially expressed genes are:
+We have dropped samples from the dataset with `Low Grade Dysplasia` (7 samples) and compared samples with `High Grade Dysplasia` (7 samples) vs. `Simple_intestinal_metaplasia`(7 samples).  Criteria for thresholding differentially expressed genes are:
 
 + Absolute Log-2 fold change of at least 1 (at least doubling or halving of gene expression)
 + Adjusted p-value < 0.01
 + Minimum expression level of at least 30 counts
 
-116 genes were up-reulated and 74 genes down-regulated:
+72 genes were up-regulated and 35 genes down-regulated:
 
 ### Up-regulated
 
@@ -224,6 +222,13 @@ datatable(setcolorder(
 
 ## Principal Components Analysis Plot
 
+In Principal Components Analysis, we search for a small number of orthogonal vectors $v_i$ (in this case two) that approximate as closely as possible the given gene expression matrix $X$:
+
+ $$
+ X = \sum_{j=1}^{2} a_jv_j
+ $$
+The first two principal components capture a total of 57% of the variance in the gene expression:  
+
 ```{r , fig.width=8, fig.height=8, fig.fullwidth=TRUE, echo=FALSE}
 
 load("rld.RData")
@@ -235,7 +240,15 @@ library(ggplot2)
 pca_plot 
 ```
 
+### Separation of Metaplasia cs. Dysplasia in PCA
+
+Both the metaplasia samples (blue circles) and dysplasia samples (red circles) run the gamut of PC1 and PC2 values from low to high (that is, the visual separation is not immediately clear).  But if we look at only the left half of the plot (where PC1<0) we find more red than blue, and if we look at the right half of the plot (where PC1>0), we find more blue than red.  Similarly, if we look at the lower half of the plot (where PC2<0), we find more blue than red, and if we look at the upper half of the plot, we find more red than blue.  Knowing the value of a sample's first two principal components allows us to predict whether it is dysplasia vs metaplasia at a better than chance rate:
+
+![](diagram.png)
+
 ## Volcano Plot
+
+The Volcano plot allows us to visualize genes along according to their statistical significance (p-value) and their fold change in dysplasia vs. metaplasia:
 
 ```{r , fig.width=8, fig.height=8, fig.fullwidth=TRUE, echo=FALSE}
 
@@ -252,6 +265,8 @@ volcano_plot
 ```
 
 ## Heatmap
+
+The Heat map shows the 14 samples' pairwise poisson _dissimilarity_ in gene expression in the shaded blue grid.  On the margins there is a clustering analysis of the 14 samples' gene expression.  The heat map shows a good (but not perfect) separation between dysplasia and metaplasia, since dysplsia samples tend to be clustered with each other and metaplasia samples tend to be clustered with each other: 
 
 ```{r , fig.width=8, fig.height=8, fig.fullwidth=TRUE, echo=FALSE}
 

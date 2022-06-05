@@ -37,13 +37,6 @@ rowData(rse_gene)=rowdata
 # use raw counts
 rse <- rse_gene
 
-# focus on low vs. high dysplasia for now
-rse <-
-  subset(rse
-         , select = colData(rse)$cond %in% 
-           c("Low_Grade_Dsyplasia"
-             , "High_Grade_Dysplasia"))
-
 # temp
 #for(i in 1:length(rse$characteristics)){
 #  print(rse$characteristics[[i]][[1]])
@@ -55,6 +48,12 @@ colData(rse) <- as.data.frame(colData(rse)) %>%
   mutate(cond = substring(lapply(characteristics, `[[`, 1), 22)) %>%
   mutate(cond=str_replace_all(cond, " ", "_")) %>%
   DataFrame
+
+# focus on low vs. high dysplasia for now
+rse <-
+  subset(rse
+         , select = colData(rse)$cond %in% 
+           c("Low_Grade_Dsyplasia", "High_Grade_Dsyplasia"))
 
 # convert to factor
 rse$cond <- factor(rse$cond)
