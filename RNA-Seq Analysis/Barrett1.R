@@ -136,3 +136,28 @@ write.csv(downregulated
 #rld <- rlog(dds)
 rld <- vst(dds)
 
+# GSEA
+
+library(msigdbr)
+library(clusterProfiler)
+
+# Get the over-expressed genes as a vector
+ #optionally truncate version in SYMBOL 
+ upregulated$SYMBOL <- gsub('\\..+', '', upregulated$SYMBOL, perl=T)
+over_expressed_genes <- upregulated %>%
+  pull(SYMBOL) 
+
+# Get the gene sets and wrangle
+gene_sets <- msigdbr(species = "Homo sapiens", category = "C5")
+gene_sets <- gene_sets %>%
+  dplyr::select(gs_name, gene_symbol)
+
+# Run over-representation analysis
+egmt <- enricher(gene = over_expressed_genes,
+                 TERM2GENE = gene_sets)
+edf <- as.data.frame(egmt)
+
+# Plot results with clusterProfiler
+dotplot(egmt)
+barplot(egmt)
+
