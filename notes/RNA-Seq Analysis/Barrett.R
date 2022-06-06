@@ -67,7 +67,7 @@ rse$cond <- factor(rse$cond)
 # Differential Expression analysis
 dds <- DESeqDataSet(rse, design = ~ cond)
 dds <- DESeq(dds)
-res <- results(dds, contrast = c("cond", "High_Grade_Dsyplasia", "Simple_intestinal_metaplasia"))
+res <- results(dds, contrast = c("cond", "Dysplasia", "Metaplasia"))
 
 # sort by padj
 res <- res[with(res, order(padj)), ]
@@ -82,6 +82,17 @@ cpmThr      <- 1      # for copy-per-million (at least 1 cpm).
 anno <- AnnotationDbi::select(org.Hs.eg.db, rownames( res ),
                               columns=c("ENSEMBL", "ENTREZID", "SYMBOL", "GENENAME"), 
                               keytype="ENSEMBL")
+
+# annotate using EnsDb.Hsapiens.v86
+library(EnsDb.Hsapiens.v86)
+resEnsemble <- ensembldb::select(
+  EnsDb.Hsapiens.v86, 
+  filter = GeneIdFilter("ENS", "startsWith"),
+  keys = res$ENSEMBL, 
+  keytype = "GENEID", 
+  columns = c("SYMBOL","GENEID","GENENAME","ENTREZID","TXNAME"))
+
+
 
 res = cbind( ENSEMBL = rownames( res), res )
 outTable <- left_join( as.data.frame( res ), anno )
@@ -107,8 +118,8 @@ library( EnhancedVolcano )
 
 EnhancedVolcano( as.data.frame(sigRes), lab = sigRes$SYMBOL, 
                  x = 'log2FoldChange', y = 'padj'
-#                 ,xlim = c(-8, 8), title = ' '
-              #   ,pCutoff = 0.01, FCcutoff = 2
+                 #                 ,xlim = c(-8, 8), title = ' '
+                 #   ,pCutoff = 0.01, FCcutoff = 2
 )              
 
 # Heatmap
@@ -129,6 +140,10 @@ pheatmap(samplePoisDistMatrix,
          clustering_distance_rows = poisd$dd,
          clustering_distance_cols = poisd$dd,
          col = colors)
+
+upregulated <- filter(sigRes, log2FoldChange > 0)
+downregulated <- filter(sigRes, log2FoldChange < 0)
+
 
 write.csv(upregulated
           ,"\\Bioinformatics_Research_Network_training_requirements\\RNA-Seq Analysis\\upregulated.csv"

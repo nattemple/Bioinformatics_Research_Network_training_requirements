@@ -8,7 +8,7 @@ output:
     toc_float: true
     code_folding: hide
 params:
-  recompile: FALSE # rerun second code chunk below
+  recompile: TRUE # rerun second code chunk below
 ---
 
 ```{r, echo=TRUE, results="hide", message=FALSE, warning=FALSE, eval=TRUE}
@@ -40,6 +40,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 suppressMessages( library("recount") )
 suppressMessages( library(org.Hs.eg.db) )
+library(EnsDb.Hsapiens.v86)
 suppressMessages( library( AnnotationDbi ) )
 
 accession='SRP043694'
@@ -105,22 +106,41 @@ pThr        <- 0.01   # for adj. p-value threshold (<= 0.01)
 logFCThr    <- 1      # for log2 fold-change (at least 2 fold)
 baseMeanThr <- 30     # for average expression level (at least 30 counts).
 
-# annotate sigRes
-anno <- AnnotationDbi::select(org.Hs.eg.db, rownames( res ),
-                              columns=c("ENSEMBL", "ENTREZID", "SYMBOL", "GENENAME"), 
-                              keytype="ENSEMBL")
+# annotate sigRes (org.Hs.eg.db)
+library(EnsDb.Hsapiens.v86)
+anno <- ensembldb::select(
+  EnsDb.Hsapiens.v86, 
+  filter = GeneIdFilter("ENS", "startsWith"),
+  keys = rownames( res ), 
+  keytype = "GENEID", 
+  columns = c("SYMBOL","GENEID","GENENAME"))
 
 res = cbind( ENSEMBL = rownames( res), res )
-outTable <- left_join( as.data.frame( res ), anno )
+outTable <- left_join( as.data.frame( res ), anno, by = c("ENSEMBL" = "GENEID") )
 
+# significant genes
 idx = which( outTable$padj <= pThr 
              & abs( outTable$log2FoldChange ) >= logFCThr 
              & outTable$baseMean >= baseMeanThr 
 )
 sigRes = outTable[idx, ]
 
-upregulated <- filter(sigRes, log2FoldChange > 0)
-downregulated <- filter(sigRes, log2FoldChange < 0)
+# significant genes (upregulated)
+idx = which( outTable$padj <= pThr 
+             & abs( outTable$log2FoldChange ) >= logFCThr 
+             & outTable$log2FoldChange >= 0 
+             & outTable$baseMean >= baseMeanThr 
+)
+upregulated = outTable[idx, ]
+
+# significant genes (downregulated)
+idx = which( outTable$padj <= pThr 
+             & abs( outTable$log2FoldChange ) >= logFCThr 
+             & outTable$log2FoldChange <= 0 
+             & outTable$baseMean >= baseMeanThr 
+)
+downregulated = outTable[idx, ]
+
 
 # perform regularized-logarithm transformation (rlog)
 #rld <- rlog(dds)
