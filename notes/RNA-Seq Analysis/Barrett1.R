@@ -153,7 +153,7 @@ gene_sets <- gene_sets %>%
   dplyr::select(gs_name, gene_symbol)
 
 # Run over-representation analysis
-egmt <- enricher(gene = over_expressed_genes,
+egmt <- enricher(gene = over_expressed_genes, pvalueCutoff = 0.5,
                  TERM2GENE = gene_sets)
 edf <- as.data.frame(egmt)
 
