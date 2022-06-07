@@ -144,7 +144,7 @@ save(rld, file = "rld.RData")
 save(egmt, file = "egmt.RData")
 ```
 
-In this assignment, we analyze RNA-Seq data from a genetic programming experiment in which the master regulatory transcription factor MyoD was genetically enhanced and used to treat 2 types of human cell lines: primary adipose-derived stem cells (ADSCs) and primary dermal fibroblasts.  Both wild-type MyoD and enahnced MyoD samples were used to treat cell lines  We analyze differential gene expression in both types of treated samples compared with untreated samples.
+In this assignment, we analyze RNA-Seq data from a genetic programming experiment in which the master regulatory transcription factor MyoD was genetically enhanced and used to treat 2 types of human cell lines: primary adipose-derived stem cells (ADSCs) and primary dermal fibroblasts.  Both wild-type MyoD and enahnced MyoD samples were used to treat the cell lines.  We analyze differential gene expression in both types of treated samples compared with untreated samples.
 
 The data for this assignment was extracted from the Recount2 database (accession number SRP049004) and analyzed with the DESeq2 software.
 
@@ -155,7 +155,7 @@ by Fusion to a Potent Transactivation Domain (2014), Kabadi et al.
 
 ## Differentially Expressed Genes {.tabset}
 
-We have grouped wild-type MyoD (wt-MyoD) and generically enhanced (vp64-MyoD) into `treated` buckets and compared to `untreated` cell samples 
+We have grouped wild-type MyoD (wt-MyoD) and generically enhanced (vp64-MyoD) into the `treated` bucket and compared to `untreated` cell samples. 
 
 Criteria for thresholding differentially expressed genes are:
 
@@ -245,7 +245,7 @@ pca_plot
 
 ## Volcano Plot
 
-The Volcano plot allows us to visualize genes along according to their statistical significance (p-value) and their fold change in treated vs. untreated samples:
+The Volcano plot allows us to visualize genes according to their statistical significance (x-axis) and their fold change in treated vs. untreated samples (y-axis):
 
 ```{r , fig.width=8, fig.height=8, fig.fullwidth=TRUE, warning=FALSE, echo=FALSE}
 
