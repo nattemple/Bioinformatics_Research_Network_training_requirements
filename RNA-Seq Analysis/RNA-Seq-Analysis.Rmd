@@ -8,7 +8,7 @@ output:
     toc_float: true
     code_folding: hide
 params:
-  recompile: TRUE # rerun second code chunk below
+  recompile: FALSE # rerun second code chunk below
 ---
 
 ```{r, echo=TRUE, results="hide", message=FALSE, warning=FALSE, eval=TRUE}
@@ -26,6 +26,7 @@ suppressMessages(library(EnhancedVolcano))
 library(pheatmap)
 library(PoiClaClu)
 library(RColorBrewer)
+library(clusterProfiler)
 ```
 
 ```{r, echo=TRUE, results="hide", message=FALSE, warning=FALSE, eval=params$recompile}
@@ -35,7 +36,6 @@ suppressMessages(library("recount"))
 library(EnsDb.Hsapiens.v86)
 suppressMessages(library(AnnotationDbi))
 library(msigdbr)
-library(clusterProfiler)
 
 accession <- "SRP049004"
 
@@ -226,11 +226,6 @@ datatable(setcolorder(
 
 ## Principal Components Analysis Plot
 
-In Principal Components Analysis, we search for a small number of orthogonal vectors $v_i$ (in this case two) that approximate as closely as possible the given gene expression matrix $X$:
-
- $$
- X = \sum_{j=1}^{2} a_jv_j
- $$
 The first two principal components capture a total of 99% of the variance in the gene expression and separate the treated vs. untreated samples:  
 
 ```{r , fig.width=8, fig.height=8, fig.fullwidth=TRUE, echo=FALSE}
@@ -293,12 +288,15 @@ heatmap_plot
 
 ## GSEA
 
+MyoD is known to be a 'master regulator' of the skeletal myogenic program (see Master control: transcriptional regulation of mammalian Myod (2019), Wardle).
+
+MyoD's major function is consistent with the enrichment terms returned by enricher, which include several pathways involved in myogenesis: 
+
 ```{r , fig.width=8, fig.height=8, fig.fullwidth=TRUE, echo=FALSE}
 
 load("egmt.RData")
 
 # Plot results with clusterProfiler
-#barplot(egmt)
 
 dot_plot <- dotplot(egmt)
 
