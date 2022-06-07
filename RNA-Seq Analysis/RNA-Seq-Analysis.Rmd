@@ -58,7 +58,12 @@ rowdata$gene_id <- gsub("\\..*", "", rowdata$gene_id)
 rowData(rse_gene) <- rowdata
 
 # assign condition from examining ColData(rse_gene)
-rse_gene$cond <- c("untreated", "treated", "treated", "untreated", "treated", "treated")
+rse_gene$cond <- c("untreated"
+                   , "treated"
+                   , "treated"
+                   , "untreated"
+                   , "treated"
+                   , "treated")
 
 # use raw counts
 rse <- rse_gene
@@ -86,14 +91,15 @@ baseMeanThr <- 30 # for average expression level (at least 30 counts).
 
 # annotate sigRes (org.Hs.eg.db)
 anno <- ensembldb::select(
-  EnsDb.Hsapiens.v86, 
+  EnsDb.Hsapiens.v86,
   filter = GeneIdFilter("ENS", "startsWith"),
-  keys = rownames( res ), 
-  keytype = "GENEID", 
-  columns = c("SYMBOL","GENEID","GENENAME"))
+  keys = rownames(res),
+  keytype = "GENEID",
+  columns = c("SYMBOL", "GENEID", "GENENAME")
+)
 
-res = cbind( ENSEMBL = rownames( res), res )
-outTable <- left_join( as.data.frame( res ), anno, by = c("ENSEMBL" = "GENEID") )
+res <- cbind(ENSEMBL = rownames(res), res)
+outTable <- left_join(as.data.frame(res), anno, by = c("ENSEMBL" = "GENEID"))
 
 
 # significant genes
@@ -120,7 +126,7 @@ downregulated <- outTable[idx, ]
 
 # Get the over-expressed genes as a vector
 over_expressed_genes <- upregulated %>%
-  pull(SYMBOL) 
+  pull(SYMBOL)
 
 # Get the gene sets and wrangle
 gene_sets <- msigdbr(species = "Homo sapiens", category = "C5")
@@ -128,12 +134,14 @@ gene_sets <- gene_sets %>%
   dplyr::select(gs_name, gene_symbol)
 
 # Run over-representation analysis
-egmt <- enricher(gene = over_expressed_genes,
-                 TERM2GENE = gene_sets)
+egmt <- enricher(
+  gene = over_expressed_genes,
+  TERM2GENE = gene_sets
+)
 edf <- as.data.frame(egmt)
 
 # perform regularized-logarithm transformation (rlog)
-#rld <- rlog(dds)
+# rld <- rlog(dds)
 rld <- vst(dds)
 
 save(sigRes, file = "sigRes.RData")
@@ -177,12 +185,14 @@ datatable(setcolorder(
       mutate(baseMean = round(baseMean)) %>%
       mutate(padj = signif(padj, 2)) %>%
       mutate(log2FoldChange = round(log2FoldChange, 3)),
-    select = c("ENSEMBL"
-               , "SYMBOL"
-               , "GENENAME"
-               , "baseMean"
-               , "log2FoldChange"
-               , "padj")
+    select = c(
+      "ENSEMBL",
+      "SYMBOL",
+      "GENENAME",
+      "baseMean",
+      "log2FoldChange",
+      "padj"
+    )
   ),
   c(
     "ENSEMBL",
@@ -206,12 +216,14 @@ datatable(setcolorder(
       mutate(baseMean = round(baseMean)) %>%
       mutate(padj = signif(padj, 2)) %>%
       mutate(log2FoldChange = round(log2FoldChange, 3)),
-    select = c("ENSEMBL"
-               , "SYMBOL"
-               , "GENENAME"
-               , "baseMean"
-               , "log2FoldChange"
-               , "padj")
+    select = c(
+      "ENSEMBL",
+      "SYMBOL",
+      "GENENAME",
+      "baseMean",
+      "log2FoldChange",
+      "padj"
+    )
   ),
   c(
     "ENSEMBL",
@@ -311,3 +323,4 @@ load("egmt.RData")
 bar_plot <- barplot(egmt)
 
 bar_plot
+```
