@@ -26,24 +26,18 @@ suppressMessages(library(EnhancedVolcano))
 library(pheatmap)
 library(PoiClaClu)
 library(RColorBrewer)
-
-
-# Barretts
-# from https://jhubiostatistics.shinyapps.io/recount/
-# 'IL-1ß and SERPINA3 are markers of an aggressive
-# Barretts Oesophagus phenotype identified using mRNA sequencing'
-study <- "Barretts"
 ```
 
 ```{r, echo=TRUE, results="hide", message=FALSE, warning=FALSE, eval=params$recompile}
 knitr::opts_chunk$set(echo = TRUE)
 
 suppressMessages(library("recount"))
-suppressMessages(library(org.Hs.eg.db))
 library(EnsDb.Hsapiens.v86)
 suppressMessages(library(AnnotationDbi))
+library(msigdbr)
+library(clusterProfiler)
 
-accession <- "SRP043694"
+accession <- "SRP049004"
 
 ## Download the RangedSummarizedExperiment object
 url <- download_study(accession)
@@ -63,37 +57,11 @@ rowdata <- rowData(rse_gene)
 rowdata$gene_id <- gsub("\\..*", "", rowdata$gene_id)
 rowData(rse_gene) <- rowdata
 
+# assign condition from examining ColData(rse_gene)
+rse_gene$cond <- c("untreated", "treated", "treated", "untreated", "treated", "treated")
+
 # use raw counts
 rse <- rse_gene
-
-
-# Simple_intestinal_metaplasia
-# High_Grade_Dysplasia
-# Low_Grade_Dysplasia
-colData(rse) <- as.data.frame(colData(rse)) %>%
-  mutate(cond = substring(lapply(characteristics, `[[`, 1), 22)) %>%
-  mutate(cond = str_replace_all(cond, " ", "_")) %>%
-  mutate(cond = str_replace_all(cond
-                                , "Dsyplasia"
-                                , "Dysplasia")) %>% # correct typo
-  DataFrame()
-
-# Barretts - focus on low vs. high dysplasia for now
-rse <-
-  subset(rse,
-    select = colData(rse)$cond %in%
-      c("Simple_intestinal_metaplasia"
-        , "High_Grade_Dysplasia")
-  )
-colData(rse) <- as.data.frame(colData(rse)) %>%
-  # rename to Metaplasia vs. Dysplasia
-  mutate(cond = str_replace_all(cond
-                                , "Simple_intestinal_metaplasia"
-                                , "Metaplasia")) %>%
-  mutate(cond = str_replace_all(cond
-                                , "High_Grade_Dysplasia"
-                                , "Dysplasia")) %>%
-  DataFrame()
 
 # convert to factor
 rse$cond <- factor(rse$cond)
@@ -104,8 +72,8 @@ dds <- DESeq(dds)
 
 res <- results(dds, contrast = c(
   "cond",
-  "Dysplasia",
-  "Metaplasia"
+  "treated",
+  "untreated"
 ))
 
 # sort by padj
@@ -117,17 +85,16 @@ logFCThr <- 1 # for log2 fold-change (at least 2 fold)
 baseMeanThr <- 30 # for average expression level (at least 30 counts).
 
 # annotate sigRes (org.Hs.eg.db)
-library(EnsDb.Hsapiens.v86)
 anno <- ensembldb::select(
-  EnsDb.Hsapiens.v86,
+  EnsDb.Hsapiens.v86, 
   filter = GeneIdFilter("ENS", "startsWith"),
-  keys = rownames(res),
-  keytype = "GENEID",
-  columns = c("SYMBOL", "GENEID", "GENENAME")
-)
+  keys = rownames( res ), 
+  keytype = "GENEID", 
+  columns = c("SYMBOL","GENEID","GENENAME"))
 
-res <- cbind(ENSEMBL = rownames(res), res)
-outTable <- left_join(as.data.frame(res), anno, by = c("ENSEMBL" = "GENEID"))
+res = cbind( ENSEMBL = rownames( res), res )
+outTable <- left_join( as.data.frame( res ), anno, by = c("ENSEMBL" = "GENEID") )
+
 
 # significant genes
 idx <- which(outTable$padj <= pThr &
@@ -149,31 +116,54 @@ idx <- which(outTable$padj <= pThr &
   outTable$baseMean >= baseMeanThr)
 downregulated <- outTable[idx, ]
 
+# GSEA
+
+# Get the over-expressed genes as a vector
+over_expressed_genes <- upregulated %>%
+  pull(SYMBOL) 
+
+# Get the gene sets and wrangle
+gene_sets <- msigdbr(species = "Homo sapiens", category = "C5")
+gene_sets <- gene_sets %>%
+  dplyr::select(gs_name, gene_symbol)
+
+# Run over-representation analysis
+egmt <- enricher(gene = over_expressed_genes,
+                 TERM2GENE = gene_sets)
+edf <- as.data.frame(egmt)
 
 # perform regularized-logarithm transformation (rlog)
-# rld <- rlog(dds)
+#rld <- rlog(dds)
 rld <- vst(dds)
 
 save(sigRes, file = "sigRes.RData")
 save(upregulated, file = "upregulated.RData")
 save(downregulated, file = "downregulated.RData")
-save(rld, file = "rld.RData")
 save(dds, file = "dds.RData")
+save(rld, file = "rld.RData")
+save(egmt, file = "egmt.RData")
 ```
 
-In this assignment, we analyze RNA-Seq data from an experiment designed to detect biomarkers for differential outcomes in Barrett's oesophagus (BO). RNA was extracted from 21 patients and diagnosed by GI pathologists into the three histological grades: `Simple intestinal metaplasia` vs. `Low Grade Dysplasia` vs. `High Grade Dysplasia`.    We focus in this analysis in differentially expressed genes in `Simple intestinal metaplasia` vs. `High Grade Dysplasia` which we will refer henceforth as `Metaplasia` and `Dysplasia`.  The data for this assignment was extracted from the Recount2 database and analyzed with the DESeq2 software.
+In this assignment, we analyze RNA-Seq data from a genetic programming experiment in which the master regulatory transcription factor MyoD was genetically enhanced and used to treat 2 types of human cell lines: primary adipose-derived stem cells (ADSCs) and primary dermal fibroblasts.  Both wild-type MyoD and enahnced MyoD samples were used to treat cell lines  We analyze differential gene expression in both types of treated samples compared with untreated samples.
+
+The data for this assignment was extracted from the Recount2 database (accession number SRP049004) and analyzed with the DESeq2 software.
 
 All code for extracting and analyzing this dataset is available in the folded code window button in the top right.  
 
+Reference: Enhanced MyoD-Induced Transdifferentiation to a Myogenic Lineage
+by Fusion to a Potent Transactivation Domain (2014), Kabadi et al.
+
 ## Differentially Expressed Genes {.tabset}
 
-We have dropped samples from the dataset with `Low Grade Dysplasia` (7 samples) and compared samples with `High Grade Dysplasia` (7 samples) vs. `Simple_intestinal_metaplasia`(7 samples).  Criteria for thresholding differentially expressed genes are:
+We have grouped wild-type MyoD (wt-MyoD) and generically enhanced (vp64-MyoD) into `treated` buckets and compared to `untreated` cell samples 
+
+Criteria for thresholding differentially expressed genes are:
 
 + Absolute Log-2 fold change of at least 1 (at least doubling or halving of gene expression)
 + Adjusted p-value < 0.01
 + Minimum expression level of at least 30 counts
 
-72 genes were up-regulated and 35 genes down-regulated:
+2,694 genes were up-regulated and 542 genes down-regulated:
 
 ### Up-regulated
 
@@ -241,7 +231,7 @@ In Principal Components Analysis, we search for a small number of orthogonal vec
  $$
  X = \sum_{j=1}^{2} a_jv_j
  $$
-The first two principal components capture a total of 57% of the variance in the gene expression:  
+The first two principal components capture a total of 99% of the variance in the gene expression and separate the treated vs. untreated samples:  
 
 ```{r , fig.width=8, fig.height=8, fig.fullwidth=TRUE, echo=FALSE}
 
@@ -249,22 +239,15 @@ load("rld.RData")
 
 pca_plot <- plotPCA(rld, intgroup = c("cond"))
 
-library(ggplot2)
-
 pca_plot
 ```
 
-### Separation of Metaplasia cs. Dysplasia in PCA
-
-Both the metaplasia samples (blue circles) and dysplasia samples (red circles) run the gamut of PC1 and PC2 values from low to high (that is, the visual separation is not immediately clear).  But if we look at only the left half of the plot (where PC1<0) we find more red than blue, and if we look at the right half of the plot (where PC1>0), we find more blue than red.  Similarly, if we look at the lower half of the plot (where PC2<0), we find more blue than red, and if we look at the upper half of the plot, we find more red than blue.  Knowing the value of a sample's first two principal components allows us to predict whether it is dysplasia vs metaplasia at a better than chance rate:
-
-![](diagram.png)
 
 ## Volcano Plot
 
-The Volcano plot allows us to visualize genes along according to their statistical significance (p-value) and their fold change in dysplasia vs. metaplasia:
+The Volcano plot allows us to visualize genes along according to their statistical significance (p-value) and their fold change in treated vs. untreated samples:
 
-```{r , fig.width=8, fig.height=8, fig.fullwidth=TRUE, echo=FALSE}
+```{r , fig.width=8, fig.height=8, fig.fullwidth=TRUE, warning=FALSE, echo=FALSE}
 
 load("sigRes.RData")
 
@@ -281,7 +264,7 @@ volcano_plot
 
 ## Heatmap
 
-The Heat map shows the 14 samples' pairwise poisson _dissimilarity_ in gene expression in the shaded blue grid.  On the margins there is a clustering analysis of the 14 samples' gene expression.  The heat map shows a good (but not perfect) separation between dysplasia and metaplasia, since dysplsia samples tend to be clustered with each other and metaplasia samples tend to be clustered with each other: 
+The Heat map shows the 6 samples' pairwise poisson _dissimilarity_ in gene expression in the shaded blue grid.  On the margins there is a clustering analysis of the 6 samples' gene expression.  The heat map shows a good separation between treated and untreated samples, since treated samples are grouped with each other and untreated samples are grouped with each other: 
 
 ```{r , fig.width=8, fig.height=8, fig.fullwidth=TRUE, echo=FALSE}
 
@@ -309,3 +292,24 @@ heatmap_plot
 
 
 ## GSEA
+
+```{r , fig.width=8, fig.height=8, fig.fullwidth=TRUE, echo=FALSE}
+
+load("egmt.RData")
+
+# Plot results with clusterProfiler
+#barplot(egmt)
+
+dot_plot <- dotplot(egmt)
+
+dot_plot
+```
+
+```{r , fig.width=8, fig.height=8, fig.fullwidth=TRUE, echo=FALSE}
+
+load("egmt.RData")
+
+# Plot results with clusterProfiler
+bar_plot <- barplot(egmt)
+
+bar_plot
