@@ -1,0 +1,1 @@
+rse <- rse[,rse$sample %in% c("SRS722893", "SRS722894")]

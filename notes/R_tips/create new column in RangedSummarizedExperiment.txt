@@ -1,0 +1,4 @@
+# create factor time_point: T0 or T3 (before bariatric surgery vs. 3 months after bariatric surgery)
+colData(rse) <- as.data.frame(colData(rse)) %>% 
+  mutate(time_point = substring(lapply(characteristics, `[[`, 2), 13, 14)) %>%
+  DataFrame
