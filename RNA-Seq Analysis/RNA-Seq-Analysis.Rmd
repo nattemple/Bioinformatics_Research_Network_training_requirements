@@ -1,0 +1,488 @@
+---
+title: "RNA-Seq Analysis assignment"
+author: "Nathan Temple"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+params:
+  recompile: true # rerun second code chunk below
+---
+
+```{r, echo=TRUE, results="hide", message=FALSE, warning=FALSE, eval=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+
+## Load libraries
+library(rlang)
+library(stringr)
+library(data.table)
+library(DT)
+library(dplyr)
+suppressMessages(library("DESeq2"))
+library(ggplot2)
+suppressMessages(library(EnhancedVolcano))
+library(pheatmap)
+library(PoiClaClu)
+library(RColorBrewer)
+library(clusterProfiler)
+library(kableExtra)
+```
+
+```{r, echo=TRUE, results="hide", message=FALSE, warning=FALSE, eval=params$recompile}
+knitr::opts_chunk$set(echo = TRUE)
+
+suppressMessages(library("recount"))
+library(EnsDb.Hsapiens.v86)
+suppressMessages(library(AnnotationDbi))
+library(msigdbr)
+
+accession <- "SRP049004"
+
+## Download the RangedSummarizedExperiment object
+url <- download_study(accession)
+
+## Load the data
+load(file.path(accession, "rse_gene.Rdata"))
+
+# truncate the ensemble id version number from the rownames
+rownames <- rownames(rse_gene)
+for (i in 1:length(rownames)) {
+  rownames[i] <- gsub("\\..*", "", rownames[i])
+}
+rownames(rse_gene) <- rownames
+
+# truncate also the gene_id column
+rowdata <- rowData(rse_gene)
+rowdata$gene_id <- gsub("\\..*", "", rowdata$gene_id)
+rowData(rse_gene) <- rowdata
+
+# assign condition from examining ColData(rse_gene)
+rse_gene$cond <- c("untreated", "wt-myoD", "vp64-MyoD", "untreated", "wt-myoD", "vp64-MyoD")
+
+# use raw counts
+rse <- rse_gene
+
+# convert to factor
+rse$cond <- factor(rse$cond)
+
+# Differential Expression analysis
+dds <- DESeqDataSet(rse, design = ~cond)
+dds <- DESeq(dds)
+
+res <- results(dds, contrast = c("cond"
+                                 , "vp64-MyoD"
+                                 , "wt-myoD")) 
+
+# sort by padj
+res <- res[with(res, order(padj)), ]
+
+# set up differentially expressed gene selection criteria
+pThr <- 0.01 # for adj. p-value threshold (<= 0.01)
+logFCThr <- 1 # for log2 fold-change (at least 2 fold)
+baseMeanThr <- 30 # for average expression level (at least 30 counts).
+
+# annotate sigRes (org.Hs.eg.db)
+anno <- ensembldb::select(
+  EnsDb.Hsapiens.v86,
+  filter = GeneIdFilter("ENS", "startsWith"),
+  keys = rownames(res),
+  keytype = "GENEID",
+  columns = c("SYMBOL", "GENEID", "GENENAME")
+)
+
+res <- cbind(ENSEMBL = rownames(res), res)
+outTable <- left_join(as.data.frame(res), anno, by = c("ENSEMBL" = "GENEID"))
+
+
+# significant genes
+idx <- which(outTable$padj <= pThr &
+  abs(outTable$log2FoldChange) >= logFCThr &
+  outTable$baseMean >= baseMeanThr)
+sigRes <- outTable[idx, ]
+
+# significant genes (upregulated)
+idx <- which(outTable$padj <= pThr &
+  abs(outTable$log2FoldChange) >= logFCThr &
+  outTable$log2FoldChange >= 0 &
+  outTable$baseMean >= baseMeanThr)
+upregulated <- outTable[idx, ]
+
+# significant genes (downregulated)
+idx <- which(outTable$padj <= pThr &
+  abs(outTable$log2FoldChange) >= logFCThr &
+  outTable$log2FoldChange <= 0 &
+  outTable$baseMean >= baseMeanThr)
+downregulated <- outTable[idx, ]
+
+# GSEA
+
+# Get the over-expressed genes as a vector
+over_expressed_genes <- upregulated %>%
+  pull(SYMBOL)
+
+# Get the gene sets and wrangle
+gene_sets <- msigdbr(species = "Homo sapiens", category = "C5")
+gene_sets <- gene_sets %>%
+  dplyr::select(gs_name, gene_symbol)
+
+# Run over-representation analysis
+egmt <- enricher(
+  gene = over_expressed_genes,
+  TERM2GENE = gene_sets
+)
+edf <- as.data.frame(egmt)
+
+# perform regularized-logarithm transformation (rlog)
+# rld <- rlog(dds)
+rld <- vst(dds)
+
+save(sigRes, file = "sigRes.RData")
+save(upregulated, file = "upregulated.RData")
+save(downregulated, file = "downregulated.RData")
+save(dds, file = "dds.RData")
+save(rld, file = "rld.RData")
+save(egmt, file = "egmt.RData")
+
+# analyze PAX6 in wt-MyoD over untreated compared with vp64-MyoD over untreated
+
+# wt-MyoD over untreated
+
+res <- results(dds, contrast = c("cond"
+                                 , "wt-myoD"
+                                 , "untreated")) 
+
+# sort by padj
+res <- res[with(res, order(padj)), ]
+
+# set up differentially expressed gene selection criteria 
+pThr        <- 0.01   # for adj. p-value threshold (<= 0.01)
+logFCThr    <- 1      # for log2 fold-change (at least 2 fold)
+baseMeanThr <- 30     # for average expression level (at least 30 counts).
+
+# annotate sigRes (org.Hs.eg.db)
+library(EnsDb.Hsapiens.v86)
+anno <- ensembldb::select(
+  EnsDb.Hsapiens.v86, 
+  filter = GeneIdFilter("ENS", "startsWith"),
+  keys = rownames( res ), 
+  keytype = "GENEID", 
+  columns = c("SYMBOL","GENEID","GENENAME"))
+
+res = cbind( ENSEMBL = rownames( res), res )
+outTable <- left_join( as.data.frame( res ), anno, by = c("ENSEMBL" = "GENEID") )
+
+wt_MyoD_over_untreated <-
+  dplyr::filter(outTable, grepl("PAX",GENENAME) | GENENAME=="MYOG")
+# sort 
+wt_MyoD_over_untreated <- wt_MyoD_over_untreated[with(wt_MyoD_over_untreated, order(GENENAME)), ]
+
+save(wt_MyoD_over_untreated, file = "wt_MyoD_over_untreated.RData")
+
+
+# vp64-MyoD over wt-myoD
+
+res <- results(dds, contrast = c("cond"
+                                 , "vp64-MyoD"
+                                 , "wt-myoD")) 
+
+# sort by padj
+res <- res[with(res, order(padj)), ]
+
+# set up differentially expressed gene selection criteria 
+pThr        <- 0.01   # for adj. p-value threshold (<= 0.01)
+logFCThr    <- 1      # for log2 fold-change (at least 2 fold)
+baseMeanThr <- 30     # for average expression level (at least 30 counts).
+
+# annotate sigRes (org.Hs.eg.db)
+library(EnsDb.Hsapiens.v86)
+anno <- ensembldb::select(
+  EnsDb.Hsapiens.v86, 
+  filter = GeneIdFilter("ENS", "startsWith"),
+  keys = rownames( res ), 
+  keytype = "GENEID", 
+  columns = c("SYMBOL","GENEID","GENENAME"))
+
+res = cbind( ENSEMBL = rownames( res), res )
+outTable <- left_join( as.data.frame( res ), anno, by = c("ENSEMBL" = "GENEID") )
+
+vp64_MyoD_over_wt_myoD <-
+  dplyr::filter(outTable, grepl("PAX",GENENAME) | GENENAME=="MYOG")
+# sort 
+vp64_MyoD_over_wt_myoD <- vp64_MyoD_over_wt_myoD[with(vp64_MyoD_over_wt_myoD, order(GENENAME)), ]
+
+save(vp64_MyoD_over_wt_myoD, file = "vp64_MyoD_over_wt_myoD.RData")
+
+# vp64-MyoD over untreated
+
+res <- results(dds, contrast = c("cond"
+                                 , "vp64-MyoD"
+                                 , "untreated")) 
+
+# sort by padj
+res <- res[with(res, order(padj)), ]
+
+# set up differentially expressed gene selection criteria 
+pThr        <- 0.01   # for adj. p-value threshold (<= 0.01)
+logFCThr    <- 1      # for log2 fold-change (at least 2 fold)
+baseMeanThr <- 30     # for average expression level (at least 30 counts).
+
+# annotate sigRes (org.Hs.eg.db)
+library(EnsDb.Hsapiens.v86)
+anno <- ensembldb::select(
+  EnsDb.Hsapiens.v86, 
+  filter = GeneIdFilter("ENS", "startsWith"),
+  keys = rownames( res ), 
+  keytype = "GENEID", 
+  columns = c("SYMBOL","GENEID","GENENAME"))
+
+res = cbind( ENSEMBL = rownames( res), res )
+outTable <- left_join( as.data.frame( res ), anno, by = c("ENSEMBL" = "GENEID") )
+
+vp64_MyoD_over_untreated <- 
+  dplyr::filter(outTable, grepl("PAX",GENENAME) | GENENAME=="MYOG")
+# sort 
+vp64_MyoD_over_untreated <- vp64_MyoD_over_untreated[with(vp64_MyoD_over_untreated, order(GENENAME)), ]
+
+save(vp64_MyoD_over_untreated, file = "vp64_MyoD_over_untreated.RData")
+
+```
+
+In this assignment, we analyze RNA-Seq data from a genetic programming experiment in which the master regulatory transcription factor MyoD was genetically enhanced and used to treat primary dermal fibroblast cell lines (Coriell Institute).  Both wild-type MyoD and enahnced MyoD samples were used to treat the cell lines.  We analyze differential gene expression between the two types of treated samples and with untreated samples.
+
+We also use the study data to test a conjecture made in Rufaut (2006) regarding the role of the PAX3 gene in mediating the degree of differentiation of dermal fibroblast into myofiber.  Details are outlined in the Hypothesis section below.
+
+The data for this assignment was extracted from the Recount2 database (accession number SRP049004) and analyzed with the DESeq2 software.
+
+All code for extracting and analyzing this dataset is available in the folded code window button in the top right.  
+
+Study Reference: Kabadi et al. (2014)
+
+## Hypothesis
+
+In addition to analyzing the differential gene expression in the current study, we use the study data to test a hypothesis of Rufaut (2006) regarding the role of the PAX3 gene in myogenesis of dermal fibroblast cells.  In that study, it was conjectured that the level of PAX3 expression correlates with myogenin expression after myogenesis.
+
+## Differentially Expressed Genes {.tabset}
+
+The experiment contained 2 biological replicates each treated with both types wt-MyoD and vp64-MyoD:
+
+```{r table2, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
+tabl <- "
+| Sample  | Replicate | Cell Line            | Treatment|
+|---------|:----------:|--------------------:|---------:|
+| 1       | 1          |  Dermal Fibroblast  | untreated|
+| 2       | 1          |  Dermal Fibroblast  | wt-MyoD  |
+| 3       | 1          |  Dermal Fibroblast  | vp64-MyoD|
+| 4       | 2          |  Dermal Fibroblast  | untreated|
+| 5       | 2          |  Dermal Fibroblast  | wt-MyoD  |
+| 6       | 2          |  Dermal Fibroblast  | vp64-MyoD|
+"
+cat(tabl)
+```
+
+Criteria for thresholding differentially expressed genes are:
+
++ Absolute Log-2 fold change of at least 1 (at least doubling or halving of gene expression)
++ Adjusted p-value < 0.01
++ Minimum expression level of at least 30 counts
+
+1,769 genes were up-regulated and 1,548 genes down-regulated:
+
+### Up-regulated
+
+```{r, echo=FALSE}
+
+load("upregulated.RData")
+
+datatable(setcolorder(
+  subset(
+    upregulated %>%
+      mutate(baseMean = round(baseMean)) %>%
+      mutate(padj = signif(padj, 2)) %>%
+      mutate(log2FoldChange = round(log2FoldChange, 3)),
+    select = c(
+      "ENSEMBL",
+      "SYMBOL",
+      "GENENAME",
+      "baseMean",
+      "log2FoldChange",
+      "padj"
+    )
+  ),
+  c(
+    "ENSEMBL",
+    "SYMBOL",
+    "GENENAME",
+    "baseMean",
+    "log2FoldChange",
+    "padj"
+  )
+))
+```
+### Down-regulated
+
+```{r, echo=FALSE}
+
+load("downregulated.RData")
+
+datatable(setcolorder(
+  subset(
+    downregulated %>%
+      mutate(baseMean = round(baseMean)) %>%
+      mutate(padj = signif(padj, 2)) %>%
+      mutate(log2FoldChange = round(log2FoldChange, 3)),
+    select = c(
+      "ENSEMBL",
+      "SYMBOL",
+      "GENENAME",
+      "baseMean",
+      "log2FoldChange",
+      "padj"
+    )
+  ),
+  c(
+    "ENSEMBL",
+    "SYMBOL",
+    "GENENAME",
+    "baseMean",
+    "log2FoldChange",
+    "padj"
+  )
+))
+```
+
+## Principal Components Analysis Plot
+
+The first two principal components capture a total of 99% of the variance in the gene expression and separate the two types of treated samples and untreated samples:  
+
+```{r , fig.width=8, fig.height=8, fig.fullwidth=TRUE, echo=FALSE}
+
+load("rld.RData")
+
+pca_plot <- plotPCA(rld, intgroup = c("cond"))
+
+pca_plot
+```
+
+
+## Volcano Plot
+
+The Volcano plot allows us to visualize genes according to their statistical significance (x-axis) and their fold change (y-axis):
+
+```{r , fig.width=8, fig.height=8, fig.fullwidth=TRUE, warning=FALSE, echo=FALSE}
+
+load("sigRes.RData")
+
+volcano_plot <-
+  EnhancedVolcano(as.data.frame(sigRes),
+    lab = sigRes$SYMBOL,
+    x = "log2FoldChange", y = "padj"
+    #                 ,xlim = c(-8, 8), title = ' '
+    #   ,pCutoff = 0.01, FCcutoff = 2
+  )
+
+volcano_plot
+```
+
+## Heatmap
+
+The Heat map shows the 6 samples' pairwise poisson _dissimilarity_ in gene expression in the shaded blue grid.  On the margins there is a clustering analysis of the 6 samples' gene expression.  The heat map shows a good separation between treated and untreated samples, since treated two types of treated samples are grouped with each other and untreated samples are grouped with each other: 
+
+```{r , fig.width=8, fig.height=8, fig.fullwidth=TRUE, echo=FALSE}
+
+load("dds.RData")
+
+# plot heatmap of Poisson distances between samples
+# use Poisson distance for raw (non-normalized) count data
+# use Euclidean distance for data normalized by
+# regularized-logarithm transformation (rlog) or
+# variance stablization transfromation (vst)
+poisd <- PoissonDistance(t(counts(dds)))
+samplePoisDistMatrix <- as.matrix(poisd$dd)
+rownames(samplePoisDistMatrix) <- dds$cond
+colnames(samplePoisDistMatrix) <- dds$cond
+colors <- colorRampPalette(rev(brewer.pal(9, "Blues")))(255)
+heatmap_plot <-
+  pheatmap(samplePoisDistMatrix,
+    clustering_distance_rows = poisd$dd,
+    clustering_distance_cols = poisd$dd,
+    col = colors
+  )
+
+heatmap_plot
+```
+
+
+## GSEA
+
+MyoD is known to be a 'master regulator' of the skeletal myogenic program (see Master control: transcriptional regulation of mammalian Myod (2019), Wardle).
+
+MyoD's major function is consistent with the enrichment terms returned by enricher, which include several pathways involved in myogenesis: 
+
+```{r , fig.width=8, fig.height=8, fig.fullwidth=TRUE, echo=FALSE}
+
+load("egmt.RData")
+
+# Plot results with clusterProfiler
+
+dot_plot <- dotplot(egmt)
+
+dot_plot
+```
+
+```{r , fig.width=8, fig.height=8, fig.fullwidth=TRUE, echo=FALSE}
+
+load("egmt.RData")
+
+# Plot results with clusterProfiler
+bar_plot <- barplot(egmt)
+
+bar_plot
+```
+
+## Results {.tabset}
+
+### wt-myoD vs. untreated
+```{r, echo=FALSE, warning = FALSE, message = FALSE}
+
+load("wt_MyoD_over_untreated.RData")
+
+dplyr::select(wt_MyoD_over_untreated, "GENENAME", "ENSEMBL", "baseMean", "log2FoldChange"
+       , "lfcSE", "stat", "pvalue", "padj") %>%
+  kable("html") %>%
+  kable_styling(full_width = FALSE)
+
+```
+
+### vp64-MyoD vs. untreated
+```{r, echo=FALSE, warning = FALSE, message = FALSE}
+
+load("vp64_MyoD_over_untreated.RData")
+
+dplyr::select(vp64_MyoD_over_untreated, "GENENAME", "ENSEMBL", "baseMean", "log2FoldChange"
+       , "lfcSE", "stat", "pvalue", "padj") %>%
+  kable("html") %>%
+  kable_styling(full_width = FALSE)
+
+```
+
+### vp64-MyoD vs. wt-myoD
+```{r, echo=FALSE, warning = FALSE, message = FALSE}
+
+load("vp64_MyoD_over_wt_myoD.RData")
+
+dplyr::select(vp64_MyoD_over_wt_myoD, "GENENAME", "ENSEMBL", "baseMean", "log2FoldChange"
+       , "lfcSE", "stat", "pvalue", "padj") %>%
+  kable("html") %>%
+  kable_styling(full_width = FALSE)
+
+```
+
+## {-}
+
+### References
+
+1) Enhanced MyoD-Induced Transdifferentiation to a Myogenic Lineage by Fusion to a Potent Transactivation Domain (2014), Kabadi et al.
+
+2) Myogenic Differentiation of Dermal Papilla Cells From Bovine Skin (2006), Rufaut et al.
